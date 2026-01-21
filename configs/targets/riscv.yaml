@@ -1,0 +1,136 @@
+# RISC-V Target Configuration for VEGA-Verified
+
+target:
+  name: RISCV
+  triple: riscv64-unknown-linux-gnu
+  description: "Standard RISC-V 64-bit target"
+
+# Reference backends for specification inference
+references:
+  - name: ARM
+    path: backends/ARM
+  - name: MIPS
+    path: backends/MIPS
+  - name: X86
+    path: backends/X86
+
+# Modules to generate and verify
+modules:
+  - name: AsmPrinter
+    priority: 1
+    functions:
+      - emitInstruction
+      - printOperand
+      - printMemOperand
+  
+  - name: ISelDAGToDAG
+    priority: 2
+    functions:
+      - Select
+      - SelectAddr
+  
+  - name: MCCodeEmitter
+    priority: 1
+    functions:
+      - getRelocType
+      - encodeInstruction
+      - getMachineOpValue
+  
+  - name: AsmParser
+    priority: 3
+    functions:
+      - ParseInstruction
+      - ParseOperand
+  
+  - name: Disassembler
+    priority: 3
+    functions:
+      - getInstruction
+      - decodeInstruction
+  
+  - name: RegisterInfo
+    priority: 2
+    functions:
+      - getCalleeSavedRegs
+      - getReservedRegs
+  
+  - name: InstrInfo
+    priority: 2
+    functions:
+      - copyPhysReg
+      - storeRegToStackSlot
+
+# Interface contracts for hierarchical verification
+interface_contracts:
+  MCCodeEmitter:
+    assumptions:
+      - validMachineInstr(MI)
+      - streamerReady(Streamer)
+      - targetInitialized(Target)
+    guarantees:
+      - emittedBytesCorrect(MI, bytes)
+      - relocationsRegistered(fixups)
+      - noInternalErrors()
+    dependencies:
+      - RegisterInfo
+      - InstrInfo
+  
+  AsmPrinter:
+    assumptions:
+      - validMachineFunction(MF)
+      - outputStreamReady(OS)
+    guarantees:
+      - validAssemblyOutput()
+      - correctInstructionFormat()
+    dependencies:
+      - MCCodeEmitter
+      - InstrInfo
+
+# RISC-V specific relocation types
+relocation_types:
+  - R_RISCV_NONE
+  - R_RISCV_32
+  - R_RISCV_64
+  - R_RISCV_RELATIVE
+  - R_RISCV_COPY
+  - R_RISCV_JUMP_SLOT
+  - R_RISCV_TLS_DTPMOD32
+  - R_RISCV_TLS_DTPMOD64
+  - R_RISCV_TLS_DTPREL32
+  - R_RISCV_TLS_DTPREL64
+  - R_RISCV_TLS_TPREL32
+  - R_RISCV_TLS_TPREL64
+  - R_RISCV_BRANCH
+  - R_RISCV_JAL
+  - R_RISCV_CALL
+  - R_RISCV_CALL_PLT
+  - R_RISCV_GOT_HI20
+  - R_RISCV_TLS_GOT_HI20
+  - R_RISCV_TLS_GD_HI20
+  - R_RISCV_PCREL_HI20
+  - R_RISCV_PCREL_LO12_I
+  - R_RISCV_PCREL_LO12_S
+  - R_RISCV_HI20
+  - R_RISCV_LO12_I
+  - R_RISCV_LO12_S
+  - R_RISCV_TPREL_HI20
+  - R_RISCV_TPREL_LO12_I
+  - R_RISCV_TPREL_LO12_S
+  - R_RISCV_TPREL_ADD
+  - R_RISCV_ADD8
+  - R_RISCV_ADD16
+  - R_RISCV_ADD32
+  - R_RISCV_ADD64
+  - R_RISCV_SUB8
+  - R_RISCV_SUB16
+  - R_RISCV_SUB32
+  - R_RISCV_SUB64
+
+# Fixup kinds mapping
+fixup_mapping:
+  FK_NONE: R_RISCV_NONE
+  FK_Data_1: R_RISCV_ADD8  # Or similar
+  FK_Data_2: R_RISCV_ADD16
+  FK_Data_4: R_RISCV_32
+  FK_Data_8: R_RISCV_64
+  FK_PCRel_4: R_RISCV_BRANCH

@@ -1,0 +1,54 @@
+# VEGA-Verified Default Configuration
+# Mode: vega | vega-verified | verify-only
+
+mode: vega-verified
+target: riscv
+references:
+  - ARM
+  - MIPS
+  - X86
+
+# Specification Inference Settings
+specification:
+  symbolic_execution_max_depth: 100
+  symbolic_execution_timeout_ms: 5000
+  pattern_min_similarity: 0.7
+  include_null_checks: true
+  include_bounds_checks: true
+
+# Verification Settings  
+verification:
+  solver: z3
+  timeout_ms: 30000
+  bmc_bound: 10
+  incremental: true
+
+# CGNR Repair Settings
+repair:
+  max_iterations: 5
+  model_path: models/repair_model
+  beam_size: 5
+  temperature: 0.7
+  use_repair: true
+
+# Hierarchical Verification Settings
+hierarchical:
+  levels:
+    - function
+    - module
+    - backend
+  parallel_verification: true
+  max_workers: 4
+
+# Experiment Settings
+experiment:
+  output_dir: results
+  save_intermediate: true
+  compare_modes:
+    - vega
+    - vega-verified
+  metrics_file: metrics.json
+
+# Logging Settings
+log_level: INFO
+log_file: null  # Set to path for file logging
