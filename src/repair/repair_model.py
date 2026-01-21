@@ -22,6 +22,7 @@ class RepairStrategy(Enum):
     LLM_API = "llm_api"         # External LLM API (OpenAI, etc.)
     LOCAL_MODEL = "local_model"  # Local transformer model
     HYBRID = "hybrid"           # Combination of strategies
+    RULE_BASED = "rule_based"   # Rule-based fallback (alias for template)
 
 
 @dataclass
@@ -563,6 +564,279 @@ class HybridRepairModel(RepairModelBase):
         return candidates[:10]  # Return top 10
 
 
+class RuleBasedRepairModel(RepairModelBase):
+    """
+    Rule-based repair model as fallback when neural model is not available.
+    Implements common repair patterns for compiler backend code.
+    
+    This is a standalone version that uses the RepairModelBase interface.
+    """
+    
+    def __init__(self):
+        self.last_strategy = ""
+        
+        # Common repair patterns
+        self.repair_rules = [
+            ("missing_pcrel_check", self._repair_missing_pcrel),
+            ("wrong_reloc_size", self._repair_wrong_size),
+            ("missing_case", self._repair_missing_case),
+            ("wrong_return_value", self._repair_wrong_return),
+        ]
+    
+    def repair(
+        self,
+        code: str,
+        counterexample: Dict[str, Any],
+        fault_location: Dict[str, Any],
+        specification: Dict[str, Any]
+    ) -> List[RepairCandidate]:
+        """Generate rule-based repairs using the standard interface."""
+        candidates = []
+        
+        for rule_name, rule_fn in self.repair_rules:
+            repaired = rule_fn(code, counterexample, fault_location, specification)
+            if repaired and repaired != code:
+                candidates.append(RepairCandidate(
+                    code=repaired,
+                    confidence=0.6,
+                    strategy=RepairStrategy.TEMPLATE,
+                    explanation=f"Applied {rule_name} repair rule",
+                    changes=[{"rule": rule_name}]
+                ))
+                self.last_strategy = rule_name
+        
+        # Sort by confidence
+        candidates.sort(key=lambda c: c.confidence, reverse=True)
+        return candidates[:5]
+    
+    def generate(self, context: Any, beam_size: int = 5) -> List[str]:
+        """
+        Generate repair candidates (compatibility interface for CGNR).
+        
+        Args:
+            context: RepairContext object from CGNR
+            beam_size: Number of candidates to generate
+            
+        Returns:
+            List of repaired code strings
+        """
+        candidates = []
+        
+        # Extract data from context (assuming RepairContext structure)
+        code = getattr(context, 'original_code', '')
+        ce = getattr(context, 'counterexample', None)
+        fault = getattr(context, 'fault_location', None)
+        
+        counterexample = {}
+        if ce:
+            counterexample = {
+                'input_values': getattr(ce, 'input_values', {}),
+                'expected_output': getattr(ce, 'expected_output', None),
+                'actual_output': getattr(ce, 'actual_output', None),
+            }
+        
+        fault_location = {}
+        if fault:
+            fault_location = {
+                'line': getattr(fault, 'line', 0),
+                'statement': getattr(fault, 'statement', ''),
+                'suspiciousness': getattr(fault, 'suspiciousness', 0.0),
+            }
+        
+        for rule_name, rule_fn in self.repair_rules:
+            repaired = rule_fn(code, counterexample, fault_location, {})
+            if repaired and repaired != code:
+                candidates.append(repaired)
+                self.last_strategy = rule_name
+                
+                if len(candidates) >= beam_size:
+                    break
+        
+        # If no rules applied, try generic repairs
+        if not candidates:
+            candidates = self._generic_repairs(code, fault_location)
+        
+        return candidates[:beam_size]
+    
+    def is_available(self) -> bool:
+        """Rule-based model is always available."""
+        return True
+    
+    def _repair_missing_pcrel(
+        self,
+        code: str,
+        counterexample: Dict[str, Any],
+        fault_location: Dict[str, Any],
+        specification: Dict[str, Any]
+    ) -> Optional[str]:
+        """Repair missing PC-relative check."""
+        ce = counterexample or {}
+        inputs = ce.get('input_values', {}) or {}
+        
+        # Check if IsPCRel is involved
+        if 'IsPCRel' not in str(inputs):
+            return None
+        
+        # Find return statement that needs fixing
+        stmt = (fault_location or {}).get('statement', '')
+        
+        if 'return' in stmt and '?' not in stmt:
+            # Pattern: return X; -> return IsPCRel ? Y : X;
+            match = re.search(r'return\s+(\w+::\w+)', stmt)
+            if match:
+                current_val = match.group(1)
+                
+                # Generate PC-relative variant
+                if '_32' in current_val:
+                    pcrel_val = current_val.replace('_32', '_PC32')
+                elif '_64' in current_val:
+                    pcrel_val = current_val.replace('_64', '_PC64')
+                else:
+                    return None
+                
+                new_line = f"return IsPCRel ? {pcrel_val} : {current_val};"
+                return code.replace(stmt, new_line)
+        
+        return None
+    
+    def _repair_wrong_size(
+        self,
+        code: str,
+        counterexample: Dict[str, Any],
+        fault_location: Dict[str, Any],
+        specification: Dict[str, Any]
+    ) -> Optional[str]:
+        """Repair wrong relocation size."""
+        ce = counterexample or {}
+        fault = fault_location or {}
+        
+        # Look for size mismatch patterns
+        expected = str(ce.get('expected_output', ''))
+        stmt = fault.get('statement', '')
+        
+        # Try to fix size-related issues
+        size_fixes = [
+            ('_32', '_64'),
+            ('_64', '_32'),
+            ('_16', '_32'),
+            ('_8', '_16'),
+        ]
+        
+        for old_size, new_size in size_fixes:
+            if old_size in stmt and new_size in expected:
+                new_stmt = stmt.replace(old_size, new_size)
+                return code.replace(stmt, new_stmt)
+        
+        return None
+    
+    def _repair_missing_case(
+        self,
+        code: str,
+        counterexample: Dict[str, Any],
+        fault_location: Dict[str, Any],
+        specification: Dict[str, Any]
+    ) -> Optional[str]:
+        """Repair missing switch case."""
+        ce = counterexample or {}
+        inputs = ce.get('input_values', {}) or {}
+        
+        # Check if a case is missing
+        fixup_kind = inputs.get('Fixup_kind', inputs.get('Fixup.kind', ''))
+        
+        if fixup_kind:
+            # Find the switch statement
+            switch_match = re.search(r'switch\s*\([^)]+\)\s*\{', code)
+            if switch_match:
+                # Try to add missing case before default
+                default_match = re.search(r'(\s*default\s*:)', code)
+                if default_match:
+                    # Infer return value
+                    return_val = self._infer_return_for_case(str(fixup_kind), code)
+                    new_case = f"\n    case {fixup_kind}: return {return_val};"
+                    
+                    insert_pos = default_match.start()
+                    return code[:insert_pos] + new_case + code[insert_pos:]
+        
+        return None
+    
+    def _repair_wrong_return(
+        self,
+        code: str,
+        counterexample: Dict[str, Any],
+        fault_location: Dict[str, Any],
+        specification: Dict[str, Any]
+    ) -> Optional[str]:
+        """Repair wrong return value."""
+        ce = counterexample or {}
+        fault = fault_location or {}
+        
+        expected = str(ce.get('expected_output', ''))
+        stmt = fault.get('statement', '')
+        
+        if expected and 'return' in stmt:
+            # Try direct replacement
+            match = re.search(r'return\s+(.+?)\s*;', stmt)
+            if match:
+                current_return = match.group(1)
+                new_stmt = stmt.replace(current_return, expected)
+                return code.replace(stmt, new_stmt)
+        
+        return None
+    
+    def _infer_return_for_case(self, case_value: str, code: str) -> str:
+        """Infer appropriate return value for a case."""
+        # Extract pattern from existing cases
+        case_return_pattern = r'case\s+(\w+):\s*return\s+(\S+);'
+        
+        existing_cases = {}
+        for match in re.finditer(case_return_pattern, code):
+            existing_cases[match.group(1)] = match.group(2)
+        
+        # Infer based on naming pattern
+        if 'Data_8' in case_value or '_64' in case_value:
+            for ret in existing_cases.values():
+                if '_64' in ret:
+                    return ret
+            return 'ELF::R_TARGET_64'
+        
+        elif 'Data_4' in case_value or '_32' in case_value:
+            for ret in existing_cases.values():
+                if '_32' in ret:
+                    return ret
+            return 'ELF::R_TARGET_32'
+        
+        elif 'Data_2' in case_value or '_16' in case_value:
+            for ret in existing_cases.values():
+                if '_16' in ret:
+                    return ret
+            return 'ELF::R_TARGET_16'
+        
+        elif 'NONE' in case_value:
+            for ret in existing_cases.values():
+                if 'NONE' in ret:
+                    return ret
+            return 'ELF::R_TARGET_NONE'
+        
+        return '0'
+    
+    def _generic_repairs(self, code: str, fault_location: Dict[str, Any]) -> List[str]:
+        """Generate generic repair attempts."""
+        candidates = []
+        stmt = (fault_location or {}).get('statement', '')
+        
+        # Try commenting out suspicious line
+        if stmt:
+            commented = code.replace(stmt, f"// FIXME: {stmt}")
+            candidates.append(commented)
+        
+        # Try adding assertion
+        if stmt:
+            assertion = f"assert(/* check condition */);\n  {stmt}"
+            candidates.append(code.replace(stmt, assertion))
+        
+        return candidates
+
+
 # Factory function
 def create_repair_model(
     strategy: RepairStrategy = RepairStrategy.HYBRID,
@@ -584,5 +858,7 @@ def create_repair_model(
         return LLMRepairModel(**kwargs)
     elif strategy == RepairStrategy.HYBRID:
         return HybridRepairModel(**kwargs)
+    elif strategy == RepairStrategy.RULE_BASED:
+        return RuleBasedRepairModel()
     else:
         return TemplateRepairModel()
