@@ -1,136 +1,144 @@
-# RISC-V Target Configuration for VEGA-Verified
+# VEGA-Verified Configuration for RISC-V Target
+# ==============================================
 
+# Target Information
 target:
-  name: RISCV
-  triple: riscv64-unknown-linux-gnu
-  description: "Standard RISC-V 64-bit target"
+  name: "RISCV"
+  triple: "riscv64-unknown-linux-gnu"
+  description: "RISC-V 64-bit target backend"
+  
+  # Supported extensions
+  extensions:
+    - RV64I      # Base integer
+    - RV64M      # Multiplication
+    - RV64A      # Atomic
+    - RV64F      # Single-precision FP
+    - RV64D      # Double-precision FP
+    - RV64C      # Compressed
 
-# Reference backends for specification inference
+# Reference Backends for Specification Inference
 references:
-  - name: ARM
-    path: backends/ARM
-  - name: MIPS
-    path: backends/MIPS
-  - name: X86
-    path: backends/X86
+  ARM:
+    path: "llvm/lib/Target/ARM"
+    modules:
+      - ARMMCCodeEmitter
+      - ARMAsmPrinter
+      - ARMELFObjectWriter
+  
+  MIPS:
+    path: "llvm/lib/Target/Mips"
+    modules:
+      - MipsMCCodeEmitter
+      - MipsAsmPrinter
+      - MipsELFObjectWriter
+  
+  AArch64:
+    path: "llvm/lib/Target/AArch64"
+    modules:
+      - AArch64MCCodeEmitter
+      - AArch64AsmPrinter
 
-# Modules to generate and verify
+# Module Configurations
 modules:
-  - name: AsmPrinter
-    priority: 1
+  MCCodeEmitter:
+    # Functions to verify
     functions:
-      - emitInstruction
-      - printOperand
-      - printMemOperand
-  
-  - name: ISelDAGToDAG
-    priority: 2
+      - name: "encodeInstruction"
+        priority: 10
+        critical: true
+      - name: "getMachineOpValue"
+        priority: 9
+      - name: "getMemoryOpValue"
+        priority: 8
+      - name: "getBranchTargetOpValue"
+        priority: 7
+      - name: "getImmOpValue"
+        priority: 6
+    
+    # Expected verification targets
+    expected_accuracy: 0.85
+    
+  AsmPrinter:
     functions:
-      - Select
-      - SelectAddr
-  
-  - name: MCCodeEmitter
-    priority: 1
+      - name: "emitInstruction"
+        priority: 10
+        critical: true
+      - name: "printOperand"
+        priority: 8
+      - name: "printMemOperand"
+        priority: 7
+      - name: "printBranchOperand"
+        priority: 6
+    
+    expected_accuracy: 0.80
+    
+  ELFObjectWriter:
     functions:
-      - getRelocType
-      - encodeInstruction
-      - getMachineOpValue
-  
-  - name: AsmParser
-    priority: 3
-    functions:
-      - ParseInstruction
-      - ParseOperand
-  
-  - name: Disassembler
-    priority: 3
-    functions:
-      - getInstruction
-      - decodeInstruction
-  
-  - name: RegisterInfo
-    priority: 2
-    functions:
-      - getCalleeSavedRegs
-      - getReservedRegs
-  
-  - name: InstrInfo
-    priority: 2
-    functions:
-      - copyPhysReg
-      - storeRegToStackSlot
+      - name: "getRelocType"
+        priority: 10
+        critical: true
+      - name: "needsRelocateWithSymbol"
+        priority: 8
+      - name: "writeNopData"
+        priority: 5
+    
+    expected_accuracy: 0.90
 
-# Interface contracts for hierarchical verification
+# Interface Contracts
 interface_contracts:
   MCCodeEmitter:
     assumptions:
-      - validMachineInstr(MI)
-      - streamerReady(Streamer)
-      - targetInitialized(Target)
+      - name: "valid_instruction"
+        condition: "(and (>= opcode 0) (< opcode 1024))"
+        description: "Opcode is within RISC-V instruction range"
+      
+      - name: "valid_operands"
+        condition: "(forall ((i Int)) (=> (< i num_ops) (valid_riscv_operand (op i))))"
+        description: "All operands are valid RISC-V operands"
+    
     guarantees:
-      - emittedBytesCorrect(MI, bytes)
-      - relocationsRegistered(fixups)
-      - noInternalErrors()
-    dependencies:
-      - RegisterInfo
-      - InstrInfo
+      - name: "correct_encoding_size"
+        condition: "(or (= size 4) (and compressed (= size 2)))"
+        description: "Encoding is 4 bytes (or 2 for compressed)"
+      
+      - name: "decodable"
+        condition: "(= (decode (encode inst)) inst)"
+        description: "Encoded instruction can be decoded back"
   
-  AsmPrinter:
+  ELFObjectWriter:
     assumptions:
-      - validMachineFunction(MF)
-      - outputStreamReady(OS)
+      - name: "valid_fixup"
+        condition: "(member fixup_kind RISCV_FIXUP_KINDS)"
+        description: "Fixup kind is valid for RISC-V"
+    
     guarantees:
-      - validAssemblyOutput()
-      - correctInstructionFormat()
-    dependencies:
-      - MCCodeEmitter
-      - InstrInfo
+      - name: "correct_reloc"
+        condition: "(member result RISCV_RELOC_TYPES)"
+        description: "Result is a valid RISC-V relocation type"
 
-# RISC-V specific relocation types
-relocation_types:
-  - R_RISCV_NONE
-  - R_RISCV_32
-  - R_RISCV_64
-  - R_RISCV_RELATIVE
-  - R_RISCV_COPY
-  - R_RISCV_JUMP_SLOT
-  - R_RISCV_TLS_DTPMOD32
-  - R_RISCV_TLS_DTPMOD64
-  - R_RISCV_TLS_DTPREL32
-  - R_RISCV_TLS_DTPREL64
-  - R_RISCV_TLS_TPREL32
-  - R_RISCV_TLS_TPREL64
-  - R_RISCV_BRANCH
-  - R_RISCV_JAL
-  - R_RISCV_CALL
-  - R_RISCV_CALL_PLT
-  - R_RISCV_GOT_HI20
-  - R_RISCV_TLS_GOT_HI20
-  - R_RISCV_TLS_GD_HI20
-  - R_RISCV_PCREL_HI20
-  - R_RISCV_PCREL_LO12_I
-  - R_RISCV_PCREL_LO12_S
-  - R_RISCV_HI20
-  - R_RISCV_LO12_I
-  - R_RISCV_LO12_S
-  - R_RISCV_TPREL_HI20
-  - R_RISCV_TPREL_LO12_I
-  - R_RISCV_TPREL_LO12_S
-  - R_RISCV_TPREL_ADD
-  - R_RISCV_ADD8
-  - R_RISCV_ADD16
-  - R_RISCV_ADD32
-  - R_RISCV_ADD64
-  - R_RISCV_SUB8
-  - R_RISCV_SUB16
-  - R_RISCV_SUB32
-  - R_RISCV_SUB64
+# Verification Overrides (specific to RISC-V)
+verification:
+  # RISC-V-specific timeout (may need more time due to extensions)
+  timeout_ms: 45000
+  
+  # BMC bound for RISC-V instruction patterns
+  bmc:
+    max_bound: 15
 
-# Fixup kinds mapping
-fixup_mapping:
-  FK_NONE: R_RISCV_NONE
-  FK_Data_1: R_RISCV_ADD8  # Or similar
-  FK_Data_2: R_RISCV_ADD16
-  FK_Data_4: R_RISCV_32
-  FK_Data_8: R_RISCV_64
-  FK_PCRel_4: R_RISCV_BRANCH
+# Repair Overrides
+repair:
+  # RISC-V-specific repair patterns
+  additional_patterns:
+    - name: "riscv_compressed_fallback"
+      pattern: "if (!isCompressed(MI)) return encodeRVC(MI);"
+      replacement: "return encodeStandard(MI);"
+    
+    - name: "riscv_reloc_mapping"
+      pattern: "case FK_Data_4: return ELF::R_RISCV_32;"
+
+# Expected Results (for evaluation)
+expected_results:
+  function_accuracy: 0.85
+  semantic_correctness: 1.0
+  verified_functions: 0.80
+  generation_time_hours: 2.0
