@@ -1,54 +1,149 @@
 # VEGA-Verified Default Configuration
-# Mode: vega | vega-verified | verify-only
+# ==================================
 
-mode: vega-verified
-target: riscv
-references:
-  - ARM
-  - MIPS
-  - X86
+# System-wide settings
+system:
+  name: "vega-verified"
+  version: "0.1.0"
+  log_level: "INFO"
+  log_file: "logs/vega_verified.log"
 
 # Specification Inference Settings
 specification:
-  symbolic_execution_max_depth: 100
-  symbolic_execution_timeout_ms: 5000
-  pattern_min_similarity: 0.7
+  # Enable automatic specification inference
+  enabled: true
+  
+  # Minimum number of reference implementations required
+  min_references: 1
+  
+  # Maximum depth for symbolic execution
+  max_depth: 100
+  
+  # Timeout for inference (milliseconds)
+  timeout_ms: 60000
+  
+  # Include null checks in preconditions
   include_null_checks: true
+  
+  # Include bounds checks in preconditions
   include_bounds_checks: true
+  
+  # Pattern matching similarity threshold
+  min_similarity: 0.7
+  
+  # Confidence threshold for inferred specs
+  min_confidence: 0.5
 
-# Verification Settings  
+# Verification Settings
 verification:
-  solver: z3
+  # SMT solver to use (z3, cvc5)
+  solver: "z3"
+  
+  # Verification timeout (milliseconds)
   timeout_ms: 30000
-  bmc_bound: 10
+  
+  # Enable incremental solving
   incremental: true
+  
+  # BMC (Bounded Model Checking) settings
+  bmc:
+    enabled: true
+    max_bound: 10
+    auto_bound_detection: true
+  
+  # Theories to enable
+  theories:
+    - bitvectors
+    - arrays
+    - uninterpreted_functions
 
-# CGNR Repair Settings
+# Repair Settings (CGNR)
 repair:
+  # Enable CGNR repair
+  enabled: true
+  
+  # Maximum repair iterations
   max_iterations: 5
-  model_path: models/repair_model
+  
+  # Number of repair candidates to generate
   beam_size: 5
+  
+  # Temperature for neural model generation
   temperature: 0.7
-  use_repair: true
+  
+  # Repair model type (rule_based, transformer, api, hybrid)
+  model_type: "hybrid"
+  
+  # API settings (for LLM-based repair)
+  api:
+    enabled: false
+    provider: "openai"
+    model: "gpt-4"
+    max_tokens: 2048
 
 # Hierarchical Verification Settings
 hierarchical:
+  # Verification levels to run
   levels:
     - function
     - module
     - backend
-  parallel_verification: true
+  
+  # Enable parallel verification
+  parallel_verification: false
   max_workers: 4
+  
+  # Require all functions/modules to pass
+  require_all_verified: false
+  
+  # Interface contract settings
+  contracts:
+    enabled: true
+    strict_compatibility: false
+    generate_missing: true
 
-# Experiment Settings
-experiment:
-  output_dir: results
-  save_intermediate: true
-  compare_modes:
-    - vega
-    - vega-verified
-  metrics_file: metrics.json
+# Parsing Settings
+parsing:
+  # Parser to use (tree_sitter, clang)
+  parser: "tree_sitter"
+  
+  # Language version
+  cpp_standard: "c++17"
+  
+  # Include paths for parsing
+  include_paths: []
+  
+  # Preprocessor definitions
+  defines: []
 
-# Logging Settings
-log_level: INFO
-log_file: null  # Set to path for file logging
+# Output Settings
+output:
+  # Output directory for results
+  directory: "results"
+  
+  # Save intermediate results
+  save_intermediate: false
+  
+  # Report format (json, html, markdown)
+  report_format: "json"
+  
+  # Verbosity level (0-3)
+  verbosity: 1
+
+# Target-specific defaults (can be overridden in target configs)
+target_defaults:
+  # Default target triple pattern
+  triple_pattern: "{arch}-unknown-linux-gnu"
+  
+  # Reference backends to use for spec inference
+  reference_backends:
+    - ARM
+    - MIPS
+    - X86
+  
+  # Module priorities (higher = verify first)
+  module_priorities:
+    MCCodeEmitter: 10
+    AsmPrinter: 8
+    ELFObjectWriter: 6
+    ISelDAGToDAG: 4
