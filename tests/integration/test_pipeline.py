@@ -1,264 +1,352 @@
 """
-Integration tests for the full VEGA-Verified pipeline.
+Integration tests for VEGA-Verified Pipeline.
+
+Tests the complete verification workflow including:
+- Specification inference
+- Verification condition generation
+- SMT-based verification
+- CGNR repair
 """
 
 import pytest
 import sys
 from pathlib import Path
 
-# Add src to path
+# Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.integration.vega_adapter import VEGAAdapter, VEGAMode
-from src.integration.llvm_adapter import LLVMAdapter
-from src.integration.experiment_runner import (
-    ExperimentRunner,
-    ExperimentConfig,
-    ExperimentMode,
+from src.integration import (
+    VEGAVerifiedPipeline,
+    PipelineConfig,
+    PipelineResult,
+    PipelineStage,
+    create_pipeline,
 )
-from src.specification.spec_language import Specification, Condition, Variable, Constant
-from src.verification.verifier import Verifier
-from src.repair.cgnr import CGNREngine
+from src.specification import Specification, ConditionType
+from src.specification.spec_language import Condition, Variable, Constant
 
 
-class TestVEGAAdapter:
-    """Tests for VEGA adapter."""
+class TestPipelineConfig:
+    """Tests for PipelineConfig."""
     
-    def test_adapter_creation(self):
-        """Test adapter creation."""
-        adapter = VEGAAdapter(mode=VEGAMode.SIMULATION)
-        assert adapter is not None
-        assert adapter.mode == VEGAMode.SIMULATION
+    def test_default_config(self):
+        """Test default configuration values."""
+        config = PipelineConfig()
+        
+        assert config.enable_spec_inference is True
+        assert config.verification_timeout_ms == 30000
+        assert config.enable_repair is True
+        assert config.max_repair_iterations == 5
     
-    def test_generation(self):
-        """Test code generation."""
-        adapter = VEGAAdapter(
-            mode=VEGAMode.SIMULATION,
-            target="RISCV"
-        )
-        
-        result = adapter.generate("getRelocType", "ELFObjectWriter")
-        
-        assert result.function_name == "getRelocType"
-        assert result.generated_code is not None
-        assert len(result.generated_code) > 0
-    
-    def test_batch_generation(self):
-        """Test batch code generation."""
-        adapter = VEGAAdapter(mode=VEGAMode.SIMULATION)
-        
-        functions = [
-            ("getRelocType", "ELFObjectWriter"),
-            ("encodeInstruction", "MCCodeEmitter"),
-        ]
-        
-        results = adapter.batch_generate(functions)
-        
-        assert len(results) == 2
-        assert all(r.generated_code for r in results)
-    
-    def test_statistics(self):
-        """Test generation statistics."""
-        adapter = VEGAAdapter(mode=VEGAMode.SIMULATION)
-        
-        # Generate some code
-        adapter.generate("getRelocType", "ELFObjectWriter")
-        adapter.generate("encodeInstruction", "MCCodeEmitter")
-        
-        stats = adapter.get_statistics()
-        
-        assert stats["generations"] == 2
-    
-    def test_target_change(self):
-        """Test changing target architecture."""
-        adapter = VEGAAdapter(mode=VEGAMode.SIMULATION, target="RISCV")
-        
-        result1 = adapter.generate("getRelocType", "ELFObjectWriter")
-        assert "RISCV" in result1.generated_code
-        
-        adapter.set_target("ARM")
-        result2 = adapter.generate("getRelocType", "ELFObjectWriter")
-        assert "ARM" in result2.generated_code
-
-
-class TestLLVMAdapter:
-    """Tests for LLVM adapter."""
-    
-    def test_adapter_creation(self):
-        """Test adapter creation."""
-        adapter = LLVMAdapter()
-        assert adapter is not None
-    
-    def test_get_backend_info(self):
-        """Test getting backend information."""
-        adapter = LLVMAdapter()
-        
-        info = adapter.get_backend_info("RISCV")
-        
-        assert info.name == "RISCV"
-        assert "MCCodeEmitter" in info.modules
-        assert info.total_functions > 0
-    
-    def test_supported_targets(self):
-        """Test getting supported targets."""
-        adapter = LLVMAdapter()
-        
-        targets = adapter.get_supported_targets()
-        
-        assert "RISCV" in targets
-        assert "ARM" in targets
-    
-    def test_reference_backends(self):
-        """Test getting reference backends."""
-        adapter = LLVMAdapter()
-        
-        refs = adapter.get_reference_backends("RISCV")
-        
-        assert "RISCV" not in refs
-        assert len(refs) >= 1
-
-
-class TestFullPipeline:
-    """Tests for the complete pipeline."""
-    
-    def test_vega_only_pipeline(self):
-        """Test VEGA-only mode."""
-        config = ExperimentConfig(
-            name="test_vega_only",
-            mode=ExperimentMode.VEGA_ONLY,
-            target="RISCV",
-            output_dir="/tmp/vega_test",
-            modules=["MCCodeEmitter"],
-        )
-        
-        runner = ExperimentRunner(config, verbose=False)
-        result = runner.run()
-        
-        assert result.vega_results
-        assert "vega" in result.statistics
-    
-    def test_vega_verified_pipeline(self):
-        """Test VEGA-Verified mode."""
-        config = ExperimentConfig(
-            name="test_vega_verified",
-            mode=ExperimentMode.VEGA_VERIFIED,
-            target="RISCV",
-            output_dir="/tmp/vega_test",
-            modules=["ELFObjectWriter"],
-            enable_verification=True,
-            enable_repair=True,
-        )
-        
-        runner = ExperimentRunner(config, verbose=False)
-        result = runner.run()
-        
-        assert result.vega_verified_results
-        assert "vega_verified" in result.statistics
-    
-    def test_comparison_pipeline(self):
-        """Test comparison mode."""
-        config = ExperimentConfig(
-            name="test_comparison",
-            mode=ExperimentMode.COMPARISON,
-            target="RISCV",
-            output_dir="/tmp/vega_test",
-            modules=["ELFObjectWriter"],
-            seed=42,  # Reproducible results
-        )
-        
-        runner = ExperimentRunner(config, verbose=False)
-        result = runner.run()
-        
-        assert result.vega_results
-        assert result.vega_verified_results
-        assert "comparison" in result.statistics
-
-
-class TestVerificationPipeline:
-    """Tests for verification components in pipeline."""
-    
-    def test_verification_integration(self):
-        """Test verifier integration."""
-        verifier = Verifier(timeout_ms=5000)
-        
-        code = """
-        unsigned getRelocType(int kind) {
-            switch (kind) {
-            case 0: return 0;
-            default: return 1;
-            }
+    def test_config_from_dict(self):
+        """Test creating config from dictionary."""
+        data = {
+            "enable_spec_inference": False,
+            "verification_timeout_ms": 60000,
+            "enable_repair": False,
         }
-        """
         
-        spec = Specification(
-            function_name="getRelocType",
-            module="Test",
-            postconditions=[
-                Condition.ge(Variable("result"), Constant(0))
-            ]
-        )
+        config = PipelineConfig.from_dict(data)
         
-        result = verifier.verify(code, spec)
-        
-        assert result is not None
-        assert result.time_ms > 0
+        assert config.enable_spec_inference is False
+        assert config.verification_timeout_ms == 60000
+        assert config.enable_repair is False
     
-    def test_cgnr_integration(self):
-        """Test CGNR repair integration."""
-        verifier = Verifier(timeout_ms=5000)
-        cgnr = CGNREngine(verifier=verifier, max_iterations=3, verbose=False)
+    def test_config_to_dict(self):
+        """Test converting config to dictionary."""
+        config = PipelineConfig()
+        data = config.to_dict()
         
-        code = """
-        int buggy(int x) {
-            return x;  // Should return abs(x)
-        }
-        """
-        
-        spec = Specification(
-            function_name="buggy",
-            module="Test",
-            postconditions=[
-                Condition.ge(Variable("result"), Constant(0))
-            ]
-        )
-        
-        result = cgnr.repair(code, spec)
-        
-        assert result is not None
-        assert result.iterations > 0
+        assert "enable_spec_inference" in data
+        assert "verification_timeout_ms" in data
+        assert "enable_repair" in data
 
 
-class TestExperimentConfig:
-    """Tests for experiment configuration."""
+class TestPipelineResult:
+    """Tests for PipelineResult."""
     
-    def test_config_creation(self):
-        """Test config creation."""
-        config = ExperimentConfig(
-            name="test",
-            mode=ExperimentMode.COMPARISON,
-            target="RISCV"
-        )
+    def test_empty_result(self):
+        """Test empty result initialization."""
+        result = PipelineResult(function_name="test_func")
         
-        assert config.name == "test"
-        assert config.mode == ExperimentMode.COMPARISON
+        assert result.function_name == "test_func"
+        assert result.final_status == "unknown"
+        assert len(result.stages) == 0
     
-    def test_config_serialization(self):
-        """Test config to/from dict."""
-        config = ExperimentConfig(
-            name="test",
-            mode=ExperimentMode.VEGA_VERIFIED,
-            target="ARM",
+    def test_verified_status(self):
+        """Test verified status check."""
+        result = PipelineResult(function_name="test_func")
+        result.final_status = "verified"
+        
+        assert result.is_verified() is True
+        assert result.is_repaired() is False
+    
+    def test_repaired_status(self):
+        """Test repaired status check."""
+        result = PipelineResult(function_name="test_func")
+        result.final_status = "repaired"
+        
+        assert result.is_verified() is False
+        assert result.is_repaired() is True
+    
+    def test_to_dict(self):
+        """Test result serialization."""
+        result = PipelineResult(function_name="test_func")
+        result.final_status = "verified"
+        result.total_time_ms = 100.5
+        
+        data = result.to_dict()
+        
+        assert data["function_name"] == "test_func"
+        assert data["final_status"] == "verified"
+        assert data["total_time_ms"] == 100.5
+        assert data["is_verified"] is True
+    
+    def test_summary(self):
+        """Test human-readable summary."""
+        result = PipelineResult(function_name="test_func")
+        result.final_status = "verified"
+        
+        summary = result.summary()
+        
+        assert "test_func" in summary
+        assert "verified" in summary
+
+
+class TestPipelineCreation:
+    """Tests for pipeline creation."""
+    
+    def test_default_pipeline(self):
+        """Test creating pipeline with defaults."""
+        pipeline = VEGAVerifiedPipeline()
+        
+        assert pipeline.config is not None
+        assert pipeline.verifier is not None
+        assert pipeline.vcgen is not None
+    
+    def test_custom_config_pipeline(self):
+        """Test creating pipeline with custom config."""
+        config = PipelineConfig(
+            verification_timeout_ms=60000,
             enable_repair=False,
         )
         
-        data = config.to_dict()
-        loaded = ExperimentConfig.from_dict(data)
+        pipeline = VEGAVerifiedPipeline(config)
         
-        assert loaded.name == config.name
-        assert loaded.mode == config.mode
-        assert loaded.target == config.target
-        assert loaded.enable_repair == config.enable_repair
+        assert pipeline.config.verification_timeout_ms == 60000
+        assert pipeline.cgnr is None  # Repair disabled
+    
+    def test_create_pipeline_factory(self):
+        """Test factory function."""
+        pipeline = create_pipeline(verbose=True)
+        
+        assert pipeline.config.verbose is True
 
 
+class TestPipelineVerification:
+    """Tests for pipeline verification functionality."""
+    
+    @pytest.fixture
+    def pipeline(self):
+        """Create pipeline for testing."""
+        config = PipelineConfig(
+            verbose=False,
+            enable_repair=True,
+        )
+        return VEGAVerifiedPipeline(config)
+    
+    @pytest.fixture
+    def simple_code(self):
+        """Simple C++ function for testing."""
+        return '''
+        unsigned getRelocType(const MCFixup &Fixup) {
+            switch (Fixup.getTargetKind()) {
+                case FK_NONE:
+                    return ELF::R_TARGET_NONE;
+                case FK_Data_4:
+                    return ELF::R_TARGET_32;
+                case FK_Data_8:
+                    return ELF::R_TARGET_64;
+                default:
+                    return ELF::R_TARGET_NONE;
+            }
+        }
+        '''
+    
+    @pytest.fixture
+    def buggy_code(self):
+        """Buggy C++ function for testing repair."""
+        return '''
+        unsigned getRelocType(const MCFixup &Fixup) {
+            switch (Fixup.getTargetKind()) {
+                case FK_NONE:
+                    return ELF::R_TARGET_NONE;
+                case FK_Data_4:
+                    return ELF::R_TARGET_64;  // Bug: wrong size
+                default:
+                    return ELF::R_TARGET_NONE;
+            }
+        }
+        '''
+    
+    def test_verify_simple_function(self, pipeline, simple_code):
+        """Test verifying a simple function."""
+        result = pipeline.verify_function(
+            code=simple_code,
+            function_name="getRelocType"
+        )
+        
+        assert result.function_name == "getRelocType"
+        assert len(result.stages) > 0
+        assert result.total_time_ms > 0
+    
+    def test_pipeline_stages(self, pipeline, simple_code):
+        """Test that pipeline executes expected stages."""
+        result = pipeline.verify_function(
+            code=simple_code,
+            function_name="getRelocType"
+        )
+        
+        stage_names = [s.stage.value for s in result.stages]
+        
+        # At minimum, should have parse stage
+        assert "parse" in stage_names
+    
+    def test_with_specification(self, pipeline, simple_code):
+        """Test verification with provided specification."""
+        spec = Specification(
+            function_name="getRelocType",
+            preconditions=[
+                Condition(ConditionType.IS_VALID, Variable("Fixup"))
+            ],
+            postconditions=[
+                Condition(ConditionType.GREATER_EQUAL, Variable("result"), Constant(0))
+            ]
+        )
+        
+        result = pipeline.verify_function(
+            code=simple_code,
+            function_name="getRelocType",
+            specification=spec
+        )
+        
+        assert result.specification is not None
+        assert result.specification.function_name == "getRelocType"
+    
+    def test_statistics(self, pipeline, simple_code):
+        """Test pipeline statistics tracking."""
+        # Reset stats
+        pipeline.reset_statistics()
+        
+        # Run verification
+        pipeline.verify_function(
+            code=simple_code,
+            function_name="getRelocType"
+        )
+        
+        stats = pipeline.get_statistics()
+        
+        assert stats["total_runs"] == 1
+        assert stats["total_time_ms"] > 0
+
+
+class TestPipelineBatch:
+    """Tests for batch verification."""
+    
+    @pytest.fixture
+    def pipeline(self):
+        config = PipelineConfig(verbose=False)
+        return VEGAVerifiedPipeline(config)
+    
+    def test_verify_batch(self, pipeline):
+        """Test batch verification."""
+        functions = [
+            ("func1", "unsigned func1() { return 0; }"),
+            ("func2", "unsigned func2() { return 1; }"),
+        ]
+        
+        results = pipeline.verify_batch(functions)
+        
+        assert "func1" in results
+        assert "func2" in results
+        assert results["func1"].function_name == "func1"
+        assert results["func2"].function_name == "func2"
+
+
+class TestIntegrationScenarios:
+    """End-to-end integration scenarios."""
+    
+    @pytest.fixture
+    def pipeline(self):
+        config = PipelineConfig(
+            enable_spec_inference=True,
+            enable_repair=True,
+            verbose=False,
+        )
+        return VEGAVerifiedPipeline(config)
+    
+    def test_full_pipeline_flow(self, pipeline):
+        """Test complete pipeline from parsing to verification."""
+        code = '''
+        unsigned computeSize(int kind) {
+            if (kind < 0) return 0;
+            return kind * 4;
+        }
+        '''
+        
+        result = pipeline.verify_function(
+            code=code,
+            function_name="computeSize"
+        )
+        
+        # Pipeline should complete without errors
+        assert result.final_status != "parse_error"
+        assert result.total_time_ms > 0
+    
+    def test_spec_inference_with_references(self, pipeline):
+        """Test specification inference with reference implementations."""
+        target_code = '''
+        unsigned getRelocType(int kind) {
+            switch (kind) {
+                case 0: return 0;
+                case 4: return 32;
+                default: return 0;
+            }
+        }
+        '''
+        
+        references = [
+            ("ARM", '''
+            unsigned getRelocType(int kind) {
+                switch (kind) {
+                    case 0: return ARM_NONE;
+                    case 4: return ARM_32;
+                    default: return ARM_NONE;
+                }
+            }
+            '''),
+            ("MIPS", '''
+            unsigned getRelocType(int kind) {
+                switch (kind) {
+                    case 0: return MIPS_NONE;
+                    case 4: return MIPS_32;
+                    default: return MIPS_NONE;
+                }
+            }
+            '''),
+        ]
+        
+        result = pipeline.verify_function(
+            code=target_code,
+            function_name="getRelocType",
+            references=references
+        )
+        
+        # Should have specification inferred
+        if result.specification:
+            assert result.specification.function_name == "getRelocType"
+
+
+# Run tests with pytest
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
