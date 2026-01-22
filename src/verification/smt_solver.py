@@ -658,3 +658,304 @@ class ExtendedSMTSolver(SMTSolver):
         self.pop()
         
         return results
+    
+    def verify_pointer_dereference(
+        self,
+        ptr_var: str,
+        offset: int = 0,
+        access_size: int = 1
+    ) -> Tuple[SMTResult, Optional[SMTModel]]:
+        """
+        Verify that a pointer dereference is safe.
+        
+        Checks:
+        - Pointer is not null
+        - Pointer + offset is within valid memory
+        
+        Args:
+            ptr_var: Pointer variable name
+            offset: Offset from pointer (for ptr[offset])
+            access_size: Size of access in bytes
+            
+        Returns:
+            UNSAT if safe, SAT with counterexample otherwise
+        """
+        ptr = self.declare_var(ptr_var, "int")
+        mem = self.get_memory_model()
+        
+        # Check validity of ptr + offset
+        access_addr = ptr + offset if offset else ptr
+        
+        self.push()
+        
+        # Condition for unsafe: null or not in valid region
+        unsafe = z3.Not(mem.is_valid_pointer(access_addr))
+        self.add_constraint(unsafe)
+        
+        result, model = self.check()
+        self.pop()
+        
+        return result, model
+    
+    def verify_division_safety(
+        self,
+        divisor_var: str
+    ) -> Tuple[SMTResult, Optional[SMTModel]]:
+        """
+        Verify that division is safe (divisor != 0).
+        
+        Args:
+            divisor_var: Variable used as divisor
+            
+        Returns:
+            UNSAT if safe, SAT with divide-by-zero example otherwise
+        """
+        divisor = self.declare_var(divisor_var, "int")
+        
+        self.push()
+        self.add_constraint(divisor == 0)
+        result, model = self.check()
+        self.pop()
+        
+        return result, model
+    
+    def verify_overflow(
+        self,
+        expr_var: str,
+        bits: int = 32,
+        signed: bool = True
+    ) -> Tuple[SMTResult, Optional[SMTModel]]:
+        """
+        Verify that an expression does not overflow.
+        
+        Args:
+            expr_var: Variable to check
+            bits: Bit width (default 32)
+            signed: Whether signed arithmetic (default True)
+            
+        Returns:
+            UNSAT if no overflow possible, SAT with overflow example otherwise
+        """
+        expr = self.declare_var(expr_var, "int")
+        
+        if signed:
+            min_val = -(2 ** (bits - 1))
+            max_val = (2 ** (bits - 1)) - 1
+        else:
+            min_val = 0
+            max_val = (2 ** bits) - 1
+        
+        self.push()
+        overflow = z3.Or(expr < min_val, expr > max_val)
+        self.add_constraint(overflow)
+        result, model = self.check()
+        self.pop()
+        
+        return result, model
+    
+    def verify_switch_completeness(
+        self,
+        switch_var: str,
+        handled_cases: List[int],
+        valid_range: Optional[Tuple[int, int]] = None
+    ) -> Tuple[SMTResult, Optional[SMTModel]]:
+        """
+        Verify that a switch statement handles all possible values.
+        
+        Args:
+            switch_var: Variable being switched on
+            handled_cases: List of case values handled
+            valid_range: Optional (min, max) range of valid values
+            
+        Returns:
+            UNSAT if complete, SAT with unhandled case otherwise
+        """
+        var = self.declare_var(switch_var, "int")
+        
+        self.push()
+        
+        # Variable is not any of the handled cases
+        not_handled = z3.And(*[var != case for case in handled_cases])
+        self.add_constraint(not_handled)
+        
+        # Variable is within valid range (if specified)
+        if valid_range:
+            min_val, max_val = valid_range
+            in_range = z3.And(var >= min_val, var <= max_val)
+            self.add_constraint(in_range)
+        
+        result, model = self.check()
+        self.pop()
+        
+        return result, model
+    
+    def verify_interprocedural(
+        self,
+        caller_constraints: List[z3.ExprRef],
+        callee_preconditions: List[z3.ExprRef],
+        callee_postconditions: List[z3.ExprRef],
+        arg_mappings: Dict[str, z3.ExprRef]
+    ) -> Dict[str, Tuple[SMTResult, Optional[SMTModel]]]:
+        """
+        Verify interprocedural call correctness.
+        
+        Checks:
+        1. Caller satisfies callee's preconditions
+        2. Callee's postconditions imply expected results
+        
+        Args:
+            caller_constraints: Constraints at call site
+            callee_preconditions: Preconditions of called function
+            callee_postconditions: Postconditions of called function
+            arg_mappings: Mapping from callee params to caller args
+            
+        Returns:
+            Dict with verification results
+        """
+        results = {}
+        
+        # Check 1: Preconditions satisfied
+        self.push()
+        
+        # Add caller constraints
+        for c in caller_constraints:
+            self.add_constraint(c)
+        
+        # Check that preconditions hold
+        if callee_preconditions:
+            pre_conjunction = z3.And(*callee_preconditions) if len(callee_preconditions) > 1 else callee_preconditions[0]
+            result, model = self.check_valid(pre_conjunction)
+            results['preconditions'] = (result, model)
+        else:
+            results['preconditions'] = (SMTResult.UNSAT, None)  # Trivially satisfied
+        
+        self.pop()
+        
+        # Check 2: Postconditions useful
+        self.push()
+        
+        # Add postconditions
+        for c in callee_postconditions:
+            self.add_constraint(c)
+        
+        # Check satisfiability (postconditions should be consistent)
+        result, model = self.check()
+        results['postconditions_consistent'] = (result, model)
+        
+        self.pop()
+        
+        return results
+
+
+class ComprehensiveSMTVerifier:
+    """
+    High-level verifier combining all SMT capabilities.
+    
+    Provides a unified interface for verifying:
+    - Memory safety
+    - Arithmetic safety
+    - Control flow completeness
+    - Interprocedural correctness
+    """
+    
+    def __init__(self, timeout_ms: int = 30000):
+        self.solver = ExtendedSMTSolver(timeout_ms=timeout_ms)
+        self.results: Dict[str, Any] = {}
+    
+    def verify_function_safety(
+        self,
+        function_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Perform comprehensive safety verification on a function.
+        
+        Args:
+            function_info: Dictionary with function information
+                - parameters: List of (name, type) tuples
+                - local_variables: List of (name, type) tuples
+                - pointer_derefs: List of pointer dereference expressions
+                - divisions: List of division expressions
+                - array_accesses: List of (array, index) tuples
+                - switches: List of switch information
+                
+        Returns:
+            Comprehensive verification results
+        """
+        results = {
+            "status": "verified",
+            "checks": {},
+            "counterexamples": [],
+        }
+        
+        # Check null safety for all pointers
+        for param_name, param_type in function_info.get("parameters", []):
+            if "*" in param_type:
+                check_result, model = self.solver.verify_null_safety(param_name)
+                results["checks"][f"null_safety_{param_name}"] = {
+                    "result": check_result.value,
+                    "safe": check_result == SMTResult.UNSAT,
+                }
+                if check_result == SMTResult.SAT and model:
+                    results["counterexamples"].append({
+                        "type": "null_pointer",
+                        "variable": param_name,
+                        "model": model.assignments,
+                    })
+                    results["status"] = "failed"
+        
+        # Check division safety
+        for div_expr in function_info.get("divisions", []):
+            check_result, model = self.solver.verify_division_safety(div_expr)
+            results["checks"][f"division_safety_{div_expr}"] = {
+                "result": check_result.value,
+                "safe": check_result == SMTResult.UNSAT,
+            }
+            if check_result == SMTResult.SAT and model:
+                results["counterexamples"].append({
+                    "type": "divide_by_zero",
+                    "expression": div_expr,
+                    "model": model.assignments,
+                })
+                results["status"] = "failed"
+        
+        # Check array bounds
+        for array_name, index_var, size in function_info.get("array_accesses", []):
+            check_result, model = self.solver.verify_array_bounds(index_var, size)
+            results["checks"][f"bounds_{array_name}_{index_var}"] = {
+                "result": check_result.value,
+                "safe": check_result == SMTResult.UNSAT,
+            }
+            if check_result == SMTResult.SAT and model:
+                results["counterexamples"].append({
+                    "type": "out_of_bounds",
+                    "array": array_name,
+                    "index": index_var,
+                    "model": model.assignments,
+                })
+                results["status"] = "failed"
+        
+        # Check switch completeness
+        for switch_info in function_info.get("switches", []):
+            check_result, model = self.solver.verify_switch_completeness(
+                switch_info["variable"],
+                switch_info["cases"],
+                switch_info.get("valid_range")
+            )
+            results["checks"][f"switch_completeness_{switch_info['variable']}"] = {
+                "result": check_result.value,
+                "complete": check_result == SMTResult.UNSAT,
+            }
+            if check_result == SMTResult.SAT and model:
+                results["counterexamples"].append({
+                    "type": "incomplete_switch",
+                    "variable": switch_info["variable"],
+                    "unhandled_value": model.assignments.get(switch_info["variable"]),
+                    "model": model.assignments,
+                })
+                results["status"] = "failed"
+        
+        return results
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get verification statistics."""
+        return self.solver.get_statistics()

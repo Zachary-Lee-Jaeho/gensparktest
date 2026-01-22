@@ -132,6 +132,9 @@ RUN pip install --no-cache-dir z3-solver>=4.12.0
 # Code Parsing
 RUN pip install --no-cache-dir tree-sitter>=0.20.0
 
+# Clang AST Python bindings (for accurate C++ parsing)
+RUN pip install --no-cache-dir libclang>=18.1.0
+
 # Testing
 RUN pip install --no-cache-dir \
     pytest>=7.0.0 \

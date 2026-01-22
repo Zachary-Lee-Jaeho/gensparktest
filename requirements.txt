@@ -14,7 +14,7 @@ transformers>=4.30.0
 
 # Code Parsing
 tree-sitter>=0.20.0
-# Note: libclang may need separate installation
+libclang>=18.1.0  # Clang AST parsing for accurate C++ analysis
 
 # Testing
 pytest>=7.0.0
