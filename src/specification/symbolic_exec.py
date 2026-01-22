@@ -10,6 +10,17 @@ from typing import List, Dict, Any, Optional, Set, Tuple, Union
 from enum import Enum
 from copy import deepcopy
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Z3 availability check
+try:
+    import z3
+    Z3_AVAILABLE = True
+except ImportError:
+    Z3_AVAILABLE = False
+    logger.warning("Z3 not available. Symbolic execution will use string-based constraints only.")
 
 
 class SymbolicValueType(Enum):
@@ -117,6 +128,165 @@ class SymbolicState:
             return self.path_condition[0]
         
         return f"(and {' '.join(self.path_condition)})"
+    
+    def is_satisfiable(self) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Check if the current path condition is satisfiable using Z3.
+        
+        Returns:
+            Tuple of (is_sat, model_dict) where model_dict contains
+            variable assignments if satisfiable.
+        """
+        if not Z3_AVAILABLE:
+            # Fallback: assume satisfiable if we can't check
+            return True, None
+        
+        if not self.path_condition:
+            return True, {}
+        
+        try:
+            solver = z3.Solver()
+            solver.set("timeout", 5000)  # 5 second timeout
+            
+            # Create Z3 variables for all symbolic values
+            z3_vars = {}
+            for name, sym_val in self.variables.items():
+                if sym_val.is_symbolic():
+                    z3_vars[name] = z3.Int(name)
+            
+            # Parse and add constraints
+            for constraint in self.path_condition:
+                z3_constraint = self._parse_constraint_to_z3(constraint, z3_vars)
+                if z3_constraint is not None:
+                    solver.add(z3_constraint)
+            
+            result = solver.check()
+            
+            if result == z3.sat:
+                model = solver.model()
+                assignments = {}
+                for name, var in z3_vars.items():
+                    try:
+                        val = model.eval(var)
+                        if val is not None:
+                            assignments[name] = str(val)
+                    except Exception:
+                        pass
+                return True, assignments
+            elif result == z3.unsat:
+                return False, None
+            else:  # unknown
+                return True, None  # Assume satisfiable on timeout
+                
+        except Exception as e:
+            logger.warning(f"Z3 satisfiability check failed: {e}")
+            return True, None
+    
+    def _parse_constraint_to_z3(self, constraint: str, z3_vars: Dict[str, Any]) -> Optional[Any]:
+        """
+        Parse an SMT-LIB style constraint to Z3 expression.
+        
+        Args:
+            constraint: SMT-LIB format constraint string
+            z3_vars: Dictionary of Z3 variable objects
+            
+        Returns:
+            Z3 expression or None if parsing fails
+        """
+        if not Z3_AVAILABLE:
+            return None
+        
+        try:
+            constraint = constraint.strip()
+            
+            # Handle simple equality: (= var value)
+            eq_match = re.match(r'\(=\s+(\w+)\s+(\w+(?:::\w+)?)\)', constraint)
+            if eq_match:
+                var_name = eq_match.group(1)
+                value = eq_match.group(2)
+                if var_name in z3_vars:
+                    # Try to parse value as integer, otherwise use as enum constant
+                    try:
+                        return z3_vars[var_name] == int(value)
+                    except ValueError:
+                        # Create an integer constant for enum value
+                        enum_val = z3.Int(value)
+                        return z3_vars[var_name] == enum_val
+            
+            # Handle negation: (not (= var value))
+            not_eq_match = re.match(r'\(not\s+\(=\s+(\w+)\s+(\w+(?:::\w+)?)\)\)', constraint)
+            if not_eq_match:
+                var_name = not_eq_match.group(1)
+                value = not_eq_match.group(2)
+                if var_name in z3_vars:
+                    try:
+                        return z3_vars[var_name] != int(value)
+                    except ValueError:
+                        enum_val = z3.Int(value)
+                        return z3_vars[var_name] != enum_val
+            
+            # Handle conjunction: (and ...)
+            if constraint.startswith('(and '):
+                # Parse sub-constraints
+                inner = constraint[5:-1]  # Remove "(and " and ")"
+                sub_constraints = self._split_smt_terms(inner)
+                z3_subs = []
+                for sub in sub_constraints:
+                    z3_sub = self._parse_constraint_to_z3(sub, z3_vars)
+                    if z3_sub is not None:
+                        z3_subs.append(z3_sub)
+                if z3_subs:
+                    return z3.And(*z3_subs)
+            
+            # Handle less than: (< var value) or (bvslt var value)
+            lt_match = re.match(r'\((?:<|bvslt)\s+(\w+)\s+(\d+)\)', constraint)
+            if lt_match:
+                var_name = lt_match.group(1)
+                value = int(lt_match.group(2))
+                if var_name in z3_vars:
+                    return z3_vars[var_name] < value
+            
+            # Handle greater than: (> var value) or (bvsgt var value)
+            gt_match = re.match(r'\((?:>|bvsgt)\s+(\w+)\s+(\d+)\)', constraint)
+            if gt_match:
+                var_name = gt_match.group(1)
+                value = int(gt_match.group(2))
+                if var_name in z3_vars:
+                    return z3_vars[var_name] > value
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Failed to parse constraint '{constraint}': {e}")
+            return None
+    
+    def _split_smt_terms(self, smt_string: str) -> List[str]:
+        """Split SMT string into individual terms, respecting parentheses."""
+        terms = []
+        depth = 0
+        current_term = ""
+        
+        for char in smt_string:
+            if char == '(':
+                depth += 1
+                current_term += char
+            elif char == ')':
+                depth -= 1
+                current_term += char
+                if depth == 0 and current_term.strip():
+                    terms.append(current_term.strip())
+                    current_term = ""
+            elif char == ' ' and depth == 0:
+                if current_term.strip():
+                    terms.append(current_term.strip())
+                    current_term = ""
+            else:
+                current_term += char
+        
+        if current_term.strip():
+            terms.append(current_term.strip())
+        
+        return terms
     
     def __str__(self) -> str:
         lines = ["SymbolicState:"]
@@ -724,19 +894,34 @@ class SymbolicExecutor:
         return condition
     
     def _record_path(self, state: SymbolicState, reason: str) -> None:
-        """Record a completed execution path."""
+        """Record a completed execution path, checking satisfiability with Z3."""
+        # Check if path is satisfiable before recording
+        is_sat, model = state.is_satisfiable()
+        
+        if not is_sat:
+            if self.verbose:
+                print(f"Path pruned (UNSAT): {reason}")
+            return  # Don't record infeasible paths
+        
         self.path_counter += 1
         path = ExecutionPath(
             path_id=self.path_counter,
             final_state=state.copy()
         )
+        
+        # Store model assignments if available
+        if model:
+            path.final_state.variables['_z3_model'] = SymbolicValue.concrete('_z3_model', model)
+        
         self.paths.append(path)
         
         if self.verbose:
-            print(f"Path {self.path_counter}: {reason}")
+            print(f"Path {self.path_counter}: {reason} (SAT)")
             if state.return_value:
                 print(f"  Return: {state.return_value}")
             print(f"  Condition: {state.path_condition_smt()}")
+            if model:
+                print(f"  Model: {model}")
     
     # Function models for common LLVM operations
     def _model_getTargetKind(self, text: str, state: SymbolicState) -> None:

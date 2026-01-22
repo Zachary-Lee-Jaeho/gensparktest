@@ -446,13 +446,47 @@ class Specification:
         with open(filepath, 'r') as f:
             return cls.from_json(f.read())
     
-    def validate(self, code: str) -> bool:
+    def validate(self, code: str, timeout_ms: int = 30000) -> bool:
         """
         Validate that the specification holds for given code.
-        This is a placeholder - actual validation requires the verifier.
+        
+        Uses the verification engine to check if the code satisfies
+        all preconditions, postconditions, and invariants.
+        
+        Args:
+            code: C++ code to validate against this specification
+            timeout_ms: Verification timeout in milliseconds
+            
+        Returns:
+            True if the code satisfies the specification, False otherwise
         """
-        # TODO: Integrate with verification module
-        return True
+        from src.verification.verifier import Verifier, VerificationStatus
+        
+        try:
+            verifier = Verifier(timeout_ms=timeout_ms)
+            result = verifier.verify(code, self)
+            return result.status == VerificationStatus.VERIFIED
+        except Exception as e:
+            # Log the error but return False (spec not validated)
+            import logging
+            logging.warning(f"Specification validation failed with error: {e}")
+            return False
+    
+    def validate_with_result(self, code: str, timeout_ms: int = 30000):
+        """
+        Validate specification and return full verification result.
+        
+        Args:
+            code: C++ code to validate against this specification
+            timeout_ms: Verification timeout in milliseconds
+            
+        Returns:
+            VerificationResult with status, counterexample, etc.
+        """
+        from src.verification.verifier import Verifier
+        
+        verifier = Verifier(timeout_ms=timeout_ms)
+        return verifier.verify(code, self)
     
     def __str__(self) -> str:
         """Human-readable representation."""

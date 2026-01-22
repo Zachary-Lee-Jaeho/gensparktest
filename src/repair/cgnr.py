@@ -14,6 +14,19 @@ from ..verification.verifier import Verifier, VerificationResult, VerificationSt
 from .fault_loc import FaultLocalizer, FaultLocation
 from .repair_model import RuleBasedRepairModel
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# Try to import neural repair engine
+try:
+    from .neural_repair_engine import NeuralRepairEngine, NeuralRepairConfig, create_repair_engine
+    NEURAL_ENGINE_AVAILABLE = True
+except ImportError:
+    NEURAL_ENGINE_AVAILABLE = False
+    logger.warning("Neural repair engine not available. Using rule-based repair only.")
+
 
 class RepairStatus(Enum):
     """Status of repair attempt."""
@@ -145,6 +158,8 @@ class CGNREngine:
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         beam_size: int = DEFAULT_BEAM_SIZE,
         use_neural_model: bool = True,
+        model_name: str = "Salesforce/codet5-base",
+        model_path: Optional[str] = None,
         verbose: bool = False
     ):
         self.verifier = verifier or Verifier()
@@ -152,18 +167,54 @@ class CGNREngine:
         self.max_iterations = max_iterations
         self.beam_size = beam_size
         self.use_neural_model = use_neural_model
+        self.model_name = model_name
+        self.model_path = model_path
         self.verbose = verbose
         
-        # Repair model (placeholder - would load actual model)
-        self.repair_model = None
+        # Repair models
+        self.neural_engine = None
+        self.rule_based_model = RuleBasedRepairModel()
+        
         if use_neural_model:
-            self._init_repair_model()
+            self._init_neural_model()
     
-    def _init_repair_model(self) -> None:
+    def _init_neural_model(self) -> None:
         """Initialize the neural repair model."""
-        # In full implementation, would load fine-tuned model
-        # For now, use rule-based repairs as fallback
-        self.repair_model = RuleBasedRepairModel()
+        if not NEURAL_ENGINE_AVAILABLE:
+            logger.warning("Neural engine not available, using rule-based fallback")
+            return
+        
+        try:
+            config = NeuralRepairConfig(
+                model_name=self.model_name,
+                model_path=self.model_path,
+                num_return_sequences=self.beam_size,
+            )
+            self.neural_engine = NeuralRepairEngine(config)
+            
+            # Try to load the model
+            if self.model_path or self._check_model_available():
+                loaded = self.neural_engine.load(self.model_path)
+                if loaded:
+                    logger.info(f"Neural repair model loaded: {self.model_name}")
+                else:
+                    logger.warning("Failed to load neural model, using rule-based fallback")
+                    self.neural_engine = None
+            else:
+                logger.info("Neural model not loaded (no GPU or model not cached)")
+                self.neural_engine = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize neural model: {e}")
+            self.neural_engine = None
+    
+    def _check_model_available(self) -> bool:
+        """Check if neural model dependencies are available."""
+        try:
+            import torch
+            # Check if GPU available or model is cached
+            return torch.cuda.is_available() or self.model_path is not None
+        except ImportError:
+            return False
     
     def repair(
         self,
@@ -284,14 +335,56 @@ class CGNREngine:
         )
     
     def _generate_repairs(self, context: RepairContext) -> List[str]:
-        """Generate repair candidates."""
+        """
+        Generate repair candidates using hybrid approach.
+        
+        Priority:
+        1. Neural model (if available and loaded)
+        2. Rule-based model (fallback)
+        """
         candidates = []
         
-        # Use neural model if available
-        if self.repair_model:
-            candidates = self.repair_model.generate(context, self.beam_size)
+        # Try neural model first
+        if self.neural_engine and self.neural_engine.is_available():
+            try:
+                # Convert counterexample to format expected by neural engine
+                cex_dict = {
+                    "input_values": context.counterexample.input_values if context.counterexample else {},
+                    "expected_output": context.counterexample.expected_output if context.counterexample else None,
+                    "actual_output": context.counterexample.actual_output if context.counterexample else None,
+                }
+                
+                neural_candidates = self.neural_engine.repair(
+                    buggy_code=context.original_code,
+                    counterexample=cex_dict,
+                    num_candidates=self.beam_size
+                )
+                
+                # Extract code from RepairCandidate objects
+                for nc in neural_candidates:
+                    if nc.code and nc.code != context.original_code:
+                        candidates.append(nc.code)
+                
+                if self.verbose and candidates:
+                    logger.info(f"Neural engine generated {len(candidates)} candidates")
+                    
+            except Exception as e:
+                logger.warning(f"Neural repair failed: {e}")
         
-        return candidates
+        # Augment with rule-based repairs
+        rule_candidates = self.rule_based_model.generate(context, self.beam_size)
+        
+        # Add rule-based candidates that aren't duplicates
+        seen = set(candidates)
+        for rc in rule_candidates:
+            if rc not in seen and rc != context.original_code:
+                candidates.append(rc)
+                seen.add(rc)
+        
+        if self.verbose:
+            logger.info(f"Total repair candidates: {len(candidates)}")
+        
+        return candidates[:self.beam_size * 2]  # Return more candidates for better selection
     
     def _select_best(
         self,

@@ -53,6 +53,20 @@ from .integrated_cgnr import (
     create_cgnr_engine,
 )
 
+# Neural Repair Engine (GPU-ready MVP)
+try:
+    from .neural_repair_engine import (
+        NeuralRepairEngine,
+        NeuralRepairConfig,
+        NeuralRepairTrainer,
+        create_repair_engine as create_neural_engine,
+        RepairCandidate as NeuralEngineCandidate,
+        DeviceType,
+    )
+    NEURAL_ENGINE_AVAILABLE = True
+except ImportError:
+    NEURAL_ENGINE_AVAILABLE = False
+
 __all__ = [
     # CGNR Engine
     "CGNREngine",
@@ -98,4 +112,12 @@ __all__ = [
     "CGNRStatus",
     "CGNRAttempt",
     "create_cgnr_engine",
+    # Neural Repair Engine (GPU-ready MVP)
+    "NeuralRepairEngine",
+    "NeuralRepairConfig",
+    "NeuralRepairTrainer",
+    "create_neural_engine",
+    "NeuralEngineCandidate",
+    "DeviceType",
+    "NEURAL_ENGINE_AVAILABLE",
 ]
