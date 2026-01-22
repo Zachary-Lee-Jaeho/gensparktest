@@ -1,0 +1,380 @@
+{
+  "experiment_name": "VEGA-Verified Full Evaluation",
+  "timestamp": "2026-01-22T10:23:28.228115",
+  "total_backends": 5,
+  "total_functions": 12,
+  "avg_vega_accuracy": 0.85,
+  "avg_vega_verified_accuracy": 0.95,
+  "avg_improvement": 0.09999999999999998,
+  "total_time_ms": 32.901763916015625,
+  "vega_paper_comparison": {
+    "RISCV": {
+      "vega_paper_accuracy": 0.715,
+      "vega_verified_accuracy": 0.75,
+      "improvement": 0.03500000000000003
+    },
+    "RI5CY": {
+      "vega_paper_accuracy": 0.732,
+      "vega_verified_accuracy": 1.0,
+      "improvement": 0.268
+    },
+    "xCORE": {
+      "vega_paper_accuracy": 0.622,
+      "vega_verified_accuracy": 1.0,
+      "improvement": 0.378
+    },
+    "ARM": {
+      "vega_paper_accuracy": 0.7,
+      "vega_verified_accuracy": 1.0,
+      "improvement": 0.30000000000000004
+    },
+    "MIPS": {
+      "vega_paper_accuracy": 0.68,
+      "vega_verified_accuracy": 1.0,
+      "improvement": 0.31999999999999995
+    }
+  },
+  "backends": [
+    {
+      "backend_name": "RISCV",
+      "architecture": "riscv",
+      "triple": "riscv64-unknown-linux-gnu",
+      "total_functions": 4,
+      "verified_functions": 3,
+      "vega_accuracy": 0.75,
+      "vega_verified_accuracy": 0.75,
+      "verification_rate": 0.75,
+      "spec_coverage": 1.0,
+      "repair_success_rate": 0.0,
+      "total_time_ms": 29.570579528808594,
+      "avg_verification_time_ms": 0.5171895027160645,
+      "avg_repair_time_ms": 19.315004348754883,
+      "expected_vega_accuracy": 0.715,
+      "expected_vega_verified_accuracy": 0.85,
+      "modules": [
+        {
+          "module_name": "MCCodeEmitter",
+          "total_functions": 2,
+          "verified_functions": 2,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.08666515350341797,
+          "functions": [
+            {
+              "function_name": "encodeInstruction",
+              "module": "MCCodeEmitter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.12159347534179688,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            },
+            {
+              "function_name": "getMachineOpValue",
+              "module": "MCCodeEmitter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.05173683166503906,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "module_name": "ELFObjectWriter",
+          "total_functions": 1,
+          "verified_functions": 0,
+          "repair_success_rate": 0.0,
+          "avg_verification_time_ms": 1.8351078033447266,
+          "functions": [
+            {
+              "function_name": "getRelocType",
+              "module": "ELFObjectWriter",
+              "vega_accurate": false,
+              "verified_before_repair": false,
+              "verified_after_repair": false,
+              "repair_iterations": 5,
+              "repair_time_ms": 19.315004348754883,
+              "verification_time_ms": 1.8351078033447266,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "module_name": "AsmPrinter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.06031990051269531,
+          "functions": [
+            {
+              "function_name": "emitInstruction",
+              "module": "AsmPrinter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.06031990051269531,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend_name": "RI5CY",
+      "architecture": "ri5cy",
+      "triple": "riscv32-pulp-linux-gnu",
+      "total_functions": 3,
+      "verified_functions": 3,
+      "vega_accuracy": 1.0,
+      "vega_verified_accuracy": 1.0,
+      "verification_rate": 1.0,
+      "spec_coverage": 1.0,
+      "repair_success_rate": 1.0,
+      "total_time_ms": 0.8513927459716797,
+      "avg_verification_time_ms": 0.17754236857096353,
+      "avg_repair_time_ms": 0.0,
+      "expected_vega_accuracy": 0.732,
+      "expected_vega_verified_accuracy": 0.88,
+      "modules": [
+        {
+          "module_name": "MCCodeEmitter",
+          "total_functions": 2,
+          "verified_functions": 2,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.05507469177246094,
+          "functions": [
+            {
+              "function_name": "encodeInstruction",
+              "module": "MCCodeEmitter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.05507469177246094,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            },
+            {
+              "function_name": "getPULPBinaryCode",
+              "module": "MCCodeEmitter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.05507469177246094,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "module_name": "ELFObjectWriter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.42247772216796875,
+          "functions": [
+            {
+              "function_name": "getRelocType",
+              "module": "ELFObjectWriter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.42247772216796875,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend_name": "xCORE",
+      "architecture": "xcore",
+      "triple": "xcore-unknown-unknown",
+      "total_functions": 2,
+      "verified_functions": 2,
+      "vega_accuracy": 0.5,
+      "vega_verified_accuracy": 1.0,
+      "verification_rate": 1.0,
+      "spec_coverage": 1.0,
+      "repair_success_rate": 1.0,
+      "total_time_ms": 0.7178783416748047,
+      "avg_verification_time_ms": 0.24509429931640625,
+      "avg_repair_time_ms": 0.0,
+      "expected_vega_accuracy": 0.622,
+      "expected_vega_verified_accuracy": 0.82,
+      "modules": [
+        {
+          "module_name": "MCCodeEmitter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.042438507080078125,
+          "functions": [
+            {
+              "function_name": "encodeInstruction",
+              "module": "MCCodeEmitter",
+              "vega_accurate": false,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.042438507080078125,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "module_name": "ELFObjectWriter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.4477500915527344,
+          "functions": [
+            {
+              "function_name": "getRelocType",
+              "module": "ELFObjectWriter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.4477500915527344,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend_name": "ARM",
+      "architecture": "arm",
+      "triple": "arm-none-eabi",
+      "total_functions": 2,
+      "verified_functions": 2,
+      "vega_accuracy": 1.0,
+      "vega_verified_accuracy": 1.0,
+      "verification_rate": 1.0,
+      "spec_coverage": 1.0,
+      "repair_success_rate": 1.0,
+      "total_time_ms": 0.9469985961914062,
+      "avg_verification_time_ms": 0.30601024627685547,
+      "avg_repair_time_ms": 0.0,
+      "expected_vega_accuracy": 0.7,
+      "expected_vega_verified_accuracy": 0.82,
+      "modules": [
+        {
+          "module_name": "MCCodeEmitter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.04291534423828125,
+          "functions": [
+            {
+              "function_name": "encodeInstruction",
+              "module": "MCCodeEmitter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.04291534423828125,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        },
+        {
+          "module_name": "ELFObjectWriter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.5691051483154297,
+          "functions": [
+            {
+              "function_name": "getRelocType",
+              "module": "ELFObjectWriter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.5691051483154297,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "backend_name": "MIPS",
+      "architecture": "mips",
+      "triple": "mips-unknown-linux-gnu",
+      "total_functions": 1,
+      "verified_functions": 1,
+      "vega_accuracy": 1.0,
+      "vega_verified_accuracy": 1.0,
+      "verification_rate": 1.0,
+      "spec_coverage": 1.0,
+      "repair_success_rate": 1.0,
+      "total_time_ms": 0.6837844848632812,
+      "avg_verification_time_ms": 0.5083084106445312,
+      "avg_repair_time_ms": 0.0,
+      "expected_vega_accuracy": 0.68,
+      "expected_vega_verified_accuracy": 0.8,
+      "modules": [
+        {
+          "module_name": "ELFObjectWriter",
+          "total_functions": 1,
+          "verified_functions": 1,
+          "repair_success_rate": 1.0,
+          "avg_verification_time_ms": 0.5083084106445312,
+          "functions": [
+            {
+              "function_name": "getRelocType",
+              "module": "ELFObjectWriter",
+              "vega_accurate": true,
+              "verified_before_repair": true,
+              "verified_after_repair": true,
+              "repair_iterations": 0,
+              "repair_time_ms": 0.0,
+              "verification_time_ms": 0.5083084106445312,
+              "spec_inferred": true,
+              "spec_confidence": 1.0,
+              "error": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
