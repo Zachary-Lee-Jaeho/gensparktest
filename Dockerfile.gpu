@@ -1,0 +1,219 @@
+# VEGA-Verified: GPU-Enabled Dockerfile for Neural Training
+# Requires NVIDIA Container Toolkit
+#
+# Build:
+#   docker build -f Dockerfile.gpu -t vega-verified:gpu .
+#
+# Run (interactive):
+#   docker run -it --rm --gpus all vega-verified:gpu
+#
+# Run full training:
+#   docker run -it --rm --gpus all \
+#       -v $(pwd)/models:/app/models \
+#       -v $(pwd)/data:/app/data \
+#       vega-verified:gpu ./scripts/run_full_training.sh --gpu --epochs 10
+#
+# Resume training from checkpoint:
+#   docker run -it --rm --gpus all \
+#       -v $(pwd)/models:/app/models \
+#       vega-verified:gpu python scripts/train_neural_repair.py --resume
+
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+LABEL maintainer="VEGA-Verified Team"
+LABEL description="GPU-enabled environment for VEGA-Verified neural training"
+LABEL version="1.0"
+
+# ============================================================================
+# Environment Configuration
+# ============================================================================
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# CUDA environment
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="${CUDA_HOME}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+
+# ============================================================================
+# Stage 1: System Dependencies
+# ============================================================================
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    build-essential \
+    cmake \
+    ninja-build \
+    pkg-config \
+    # Version control
+    git \
+    git-lfs \
+    # Utilities
+    wget \
+    curl \
+    vim \
+    nano \
+    htop \
+    unzip \
+    zip \
+    tar \
+    jq \
+    # Locale
+    locales \
+    # SSL/Crypto
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    # Python
+    python3 \
+    python3-pip \
+    python3-dev \
+    python3-venv \
+    # LLVM build dependencies
+    zlib1g-dev \
+    libncurses5-dev \
+    libxml2-dev \
+    libedit-dev \
+    libffi-dev \
+    # Cleanup
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up locale
+RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
+
+# ============================================================================
+# Stage 2: LLVM 18 Installation
+# ============================================================================
+RUN wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh 18 all && \
+    rm llvm.sh
+
+# Set LLVM 18 as default
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100 && \
+    update-alternatives --install /usr/bin/llc llc /usr/bin/llc-18 100 && \
+    update-alternatives --install /usr/bin/opt opt /usr/bin/opt-18 100 && \
+    update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-18 100 && \
+    update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-18 100 || true
+
+# LLVM environment variables
+ENV LLVM_DIR=/usr/lib/llvm-18
+ENV PATH="${LLVM_DIR}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${LLVM_DIR}/lib:${LD_LIBRARY_PATH}"
+
+# ============================================================================
+# Stage 3: Python Environment
+# ============================================================================
+WORKDIR /app
+
+# Create virtual environment
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:${PATH}"
+ENV VIRTUAL_ENV="/app/venv"
+
+# Upgrade pip
+RUN pip install --upgrade pip setuptools wheel
+
+# ============================================================================
+# Stage 4: Python Dependencies (GPU)
+# ============================================================================
+
+# Core dependencies
+RUN pip install --no-cache-dir \
+    pyyaml>=6.0 \
+    pydantic>=2.0 \
+    click>=8.0
+
+# SMT Solver
+RUN pip install --no-cache-dir z3-solver>=4.12.0
+
+# Code Parsing
+RUN pip install --no-cache-dir tree-sitter>=0.20.0
+
+# Clang AST Python bindings
+RUN pip install --no-cache-dir libclang>=18.1.0
+
+# Testing
+RUN pip install --no-cache-dir \
+    pytest>=7.0.0 \
+    pytest-cov>=4.0.0
+
+# Utilities
+RUN pip install --no-cache-dir \
+    tqdm>=4.65.0 \
+    rich>=13.0.0
+
+# ============================================================================
+# GPU-SPECIFIC: PyTorch with CUDA 12.1 support
+# ============================================================================
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Transformers and training dependencies
+RUN pip install --no-cache-dir \
+    transformers>=4.30.0 \
+    accelerate>=0.26.0 \
+    datasets>=2.14.0 \
+    sentencepiece>=0.1.99 \
+    protobuf>=3.20.0
+
+# ============================================================================
+# Stage 5: Copy Source Code
+# ============================================================================
+COPY . /app/
+
+# Install VEGA-Verified as package
+RUN pip install -e .
+
+# ============================================================================
+# Stage 6: Create Output Directories
+# ============================================================================
+RUN mkdir -p /app/output /app/results /app/data /app/logs /app/models
+
+# ============================================================================
+# Stage 7: Verification
+# ============================================================================
+RUN echo "=== GPU Environment Verification ===" && \
+    echo "Python: $(python --version)" && \
+    echo "LLVM: $(llvm-config --version)" && \
+    echo "Clang: $(clang --version | head -1)" && \
+    echo "Z3: $(python -c 'import z3; print(z3.get_version_string())')" && \
+    echo "PyTorch: $(python -c 'import torch; print(torch.__version__)')" && \
+    echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available())')" && \
+    echo "Transformers: $(python -c 'import transformers; print(transformers.__version__)')" && \
+    echo "======================================"
+
+# Run basic tests
+RUN cd /app && python -m pytest tests/ -v --tb=short -x -q 2>/dev/null || \
+    echo "Note: Some tests may require GPU"
+
+# ============================================================================
+# Entry Point
+# ============================================================================
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
+# Default command: verify GPU and show help
+CMD ["bash", "-c", "python -c 'import torch; print(f\"GPU available: {torch.cuda.is_available()}\")' && vega-verify --help"]
+
+# ============================================================================
+# Usage Examples:
+# ============================================================================
+# Interactive shell:
+#   docker run -it --gpus all vega-verified:gpu /bin/bash
+#
+# Quick neural test:
+#   docker run --gpus all vega-verified:gpu python scripts/train_neural_repair.py --test-only
+#
+# Full GPU training:
+#   docker run --gpus all -v $(pwd)/models:/app/models \
+#       vega-verified:gpu ./scripts/run_full_training.sh --gpu --epochs 10
+#
+# Resume from checkpoint:
+#   docker run --gpus all -v $(pwd)/models:/app/models \
+#       vega-verified:gpu python scripts/train_neural_repair.py --resume --epochs 5

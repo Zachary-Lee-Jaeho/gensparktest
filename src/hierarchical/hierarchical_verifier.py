@@ -41,6 +41,27 @@ class HierarchicalResult:
     total_time_ms: float = 0.0
     
     @property
+    def backend_name(self) -> Optional[str]:
+        """Get backend name if available."""
+        if self.backend_result:
+            return self.backend_result.backend_name
+        return None
+    
+    @property
+    def total_modules(self) -> int:
+        """Get total modules count if backend verification."""
+        if self.backend_result:
+            return self.backend_result.total_modules
+        return len(self.module_results)
+    
+    @property
+    def modules_verified(self) -> int:
+        """Get verified modules count."""
+        if self.backend_result:
+            return self.backend_result.modules_verified
+        return sum(1 for r in self.module_results.values() if r.is_successful())
+    
+    @property
     def is_successful(self) -> bool:
         """Check if highest-level verification succeeded."""
         if self.level == VerificationLevel.BACKEND and self.backend_result:
@@ -360,6 +381,14 @@ class HierarchicalVerifier:
             code, spec = target[0], target[1]
             module_name = target[2] if len(target) > 2 else ""
             return self.verify_function(code, spec, module_name)
+        elif isinstance(target, str):
+            # Code string only - create a minimal spec for basic verification
+            # Try to extract function name from code
+            import re
+            match = re.search(r'(\w+)\s*\([^)]*\)\s*\{', target)
+            func_name = match.group(1) if match else "unknown"
+            default_spec = Specification(function_name=func_name)
+            return self.verify_function(target, default_spec, "")
         else:
             raise ValueError(f"Unknown target type: {type(target)}")
     

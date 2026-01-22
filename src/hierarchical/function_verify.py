@@ -226,6 +226,7 @@ class FunctionVerifier:
         except Exception as e:
             result.status = FunctionVerificationStatus.ERROR
             result.messages.append(f"Error: {str(e)}")
+            self.stats["total_failed"] += 1  # Count errors as failed
             
             if self.verbose:
                 print(f"  [!] Error: {e}")
