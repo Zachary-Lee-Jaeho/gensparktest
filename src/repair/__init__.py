@@ -29,6 +29,29 @@ from .neural_model import (
     ModelBackend,
     create_repair_model,
 )
+from .neural_repair import (
+    NeuralRepairModel,
+    HybridRepairModel as NeuralHybridRepairModel,
+    RepairCandidate as NeuralRepairCandidate,
+    RepairContext as NeuralRepairContext,
+    RepairPattern,
+    create_neural_repair_model,
+)
+from .transformer_repair import (
+    HybridTransformerRepairModel,
+    TemplateRepairModel as TransformerTemplateModel,
+    PatternRepairModel,
+    CodeContext,
+    RepairStrategy as TransformerRepairStrategy,
+    create_transformer_repair_model,
+)
+from .integrated_cgnr import (
+    IntegratedCGNREngine,
+    CGNRResult,
+    CGNRStatus,
+    CGNRAttempt,
+    create_cgnr_engine,
+)
 
 __all__ = [
     # CGNR Engine
@@ -55,4 +78,24 @@ __all__ = [
     "ModelConfig",
     "ModelBackend",
     "create_repair_model",
+    # Neural Repair (from neural_repair.py)
+    "NeuralRepairModel",
+    "NeuralHybridRepairModel",
+    "NeuralRepairCandidate",
+    "NeuralRepairContext",
+    "RepairPattern",
+    "create_neural_repair_model",
+    # Transformer Repair (from transformer_repair.py)
+    "HybridTransformerRepairModel",
+    "TransformerTemplateModel",
+    "PatternRepairModel",
+    "CodeContext",
+    "TransformerRepairStrategy",
+    "create_transformer_repair_model",
+    # Integrated CGNR
+    "IntegratedCGNREngine",
+    "CGNRResult",
+    "CGNRStatus",
+    "CGNRAttempt",
+    "create_cgnr_engine",
 ]
