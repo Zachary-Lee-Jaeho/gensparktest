@@ -39,6 +39,13 @@ from .integrated_verifier import (
     IntegratedVerifier,
     create_integrated_verifier,
 )
+from .switch_verifier import (
+    SwitchVerifier,
+    SwitchStatement,
+    CaseMapping,
+    SwitchStatementParser,
+    VerificationResult as SwitchVerificationResult,
+)
 
 __all__ = [
     # Verifier
@@ -80,4 +87,10 @@ __all__ = [
     # Integrated Verifier
     "IntegratedVerifier",
     "create_integrated_verifier",
+    # Switch Verifier
+    "SwitchVerifier",
+    "SwitchStatement",
+    "CaseMapping",
+    "SwitchStatementParser",
+    "SwitchVerificationResult",
 ]

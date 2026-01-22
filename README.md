@@ -1,145 +1,418 @@
-# VEGA 논문 재현 및 분석 프로젝트
+# VEGA-Verified: Semantically Verified Neural Compiler Backend Generation
 
-## 개요
+[![Tests](https://img.shields.io/badge/tests-123%20passing-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-2%20complete-blue)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
 
-이 프로젝트는 CGO 2025에 발표된 **VEGA: Automatically Generating Compiler Backends Using a Pre-Trained Transformer Model** 논문을 재현하고, 저명한 compiler backend autogeneration 연구자의 관점에서 분석하여 개선점을 제안합니다.
+> **Paper Artifact**: This repository contains the implementation and reproduction materials for the VEGA-Verified system.
 
-## 프로젝트 구조
+---
+
+## ⚠️ IMPORTANT: Implementation Status & Limitations
+
+**This section MUST be read before using the system or citing results.**
+
+### Critical Mock/Placeholder Components
+
+The following components operate in **mock/simulation mode** and do NOT represent fully functional implementations:
+
+| Component | Status | Impact | Details |
+|-----------|--------|--------|---------|
+| **Neural Repair Model** | 🔴 Mock | Critical | `src/repair/model_finetuning.py` - Model NOT trained; uses template-based rules |
+| **VEGA Model Adapter** | 🔴 Mock | Critical | `src/integration/vega_adapter.py` - Simulation mode; no real VEGA model |
+| **Transformer Repair** | 🔴 Mock | Critical | `src/repair/neural_model.py` - Returns empty results without transformers |
+| **Z3 SMT Verification** | 🟠 Conditional | Major | `src/verification/switch_verifier.py` - Falls back to pattern matching if Z3 unavailable |
+| **CGNR Pipeline** | 🟠 Partial | Major | `src/integration/cgnr_pipeline.py` - Works but uses mock repair model |
+| **Spec Validation** | 🟡 Placeholder | Minor | `src/specification/spec_language.py` - `validate()` always returns True |
+
+### What IS Fully Implemented
+
+| Component | Status | Files |
+|-----------|--------|-------|
+| Semantic Analyzer | ✅ Complete | `src/verification/semantic_analyzer.py` |
+| IR to SMT Converter | ✅ Complete | `src/verification/ir_to_smt.py` |
+| Training Data Generator | ✅ Complete | `src/repair/training_data.py` |
+| Docker/LLVM Infrastructure | ✅ Complete | `docker/Dockerfile.llvm`, `docker/tools/` |
+| Switch Verifier (Pattern) | ✅ Complete | `src/verification/switch_verifier.py` |
+| Specification Language | ✅ Complete | `src/specification/spec_language.py` |
+
+### Paper Writing Disclosure Requirements
+
+When writing papers using this codebase, you **MUST** disclose:
+
+1. **Limitations Section**: Neural repair operates in template-based mode (not trained)
+2. **Experimental Setup**: GPU-free execution uses mock neural components  
+3. **Threats to Validity**: Internal validity affected by mock-based evaluation
+
+---
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [System Overview](#-system-overview)
+- [Installation](#-installation)
+- [CLI Usage](#-cli-usage)
+- [Paper Reproduction](#-paper-reproduction)
+- [Project Structure](#-project-structure)
+- [Development](#-development)
+- [References](#-references)
+
+---
+
+## 🚀 Quick Start
+
+### Using Docker (Recommended)
+
+```bash
+# Build the unified Docker image
+docker build -f Dockerfile.unified -t vega-verified .
+
+# Run all experiments
+docker run -it --rm -v $(pwd)/results:/app/results vega-verified \
+    vega-verify experiment --all
+
+# Interactive shell
+docker run -it --rm vega-verified /bin/bash
+```
+
+### Using Python Directly
+
+```bash
+# Install dependencies
+pip install -e .
+
+# Check system status
+vega-verify status
+
+# Run quick test
+vega-verify experiment --experiment verification --sample-size 10
+
+# Run all experiments
+vega-verify experiment --all
+```
+
+---
+
+## 🔬 System Overview
+
+VEGA-Verified extends the VEGA neural compiler backend generator with formal verification capabilities.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        VEGA-Verified Pipeline                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │    LLVM      │───▶│   Semantic   │───▶│     SMT      │          │
+│  │  Extractor   │    │   Analyzer   │    │   Verifier   │          │
+│  └──────────────┘    └──────────────┘    └──────────────┘          │
+│         │                   │                   │                   │
+│         ▼                   ▼                   ▼                   │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐          │
+│  │  Function    │    │  IR/Pattern  │    │ Counterexample│          │
+│  │   Database   │    │  Recognition │    │  Extraction   │          │
+│  └──────────────┘    └──────────────┘    └──────────────┘          │
+│                             │                   │                   │
+│                             ▼                   ▼                   │
+│                      ┌──────────────────────────────┐              │
+│                      │      CGNR Repair Loop        │              │
+│                      │  (Counterexample-Guided      │              │
+│                      │   Neural Repair)             │              │
+│                      └──────────────────────────────┘              │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Components
+
+| Phase | Component | Description |
+|-------|-----------|-------------|
+| **Phase 1** | LLVM Extraction | Extract functions from LLVM backends (RISCV, ARM, AArch64, X86) |
+| **Phase 2.1** | Semantic Analyzer | Pattern recognition, CFG construction, symbolic execution |
+| **Phase 2.2** | SMT Integration | Z3-based verification, Property DSL, counterexample extraction |
+| **Phase 2.3** | Neural Repair | Training data generation, model fine-tuning interface |
+| **Phase 2.4** | CGNR Pipeline | Counterexample-guided repair loop, end-to-end integration |
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+
+- Python 3.8+
+- LLVM 18+ (for full functionality)
+- Z3 Solver (optional, for SMT verification)
+
+### Method 1: Docker (Full Environment)
+
+```bash
+# Build unified image with all dependencies
+docker build -f Dockerfile.unified -t vega-verified .
+
+# Verify installation
+docker run --rm vega-verified vega-verify status
+```
+
+### Method 2: Local Installation
+
+```bash
+# Clone repository
+git clone https://github.com/Zachary-Lee-Jaeho/gensparktest.git
+cd gensparktest/webapp
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or: venv\Scripts\activate  # Windows
+
+# Install package
+pip install -e .
+
+# Install optional dependencies
+pip install z3-solver  # SMT verification
+pip install torch transformers  # Neural components
+
+# Verify installation
+vega-verify status
+```
+
+### Method 3: Development Installation
+
+```bash
+pip install -e ".[dev]"
+pip install -e ".[neural]"
+```
+
+---
+
+## 🖥️ CLI Usage
+
+### Available Commands
+
+```bash
+# Show all commands
+vega-verify --help
+
+# System status
+vega-verify status
+
+# Extract functions from LLVM
+vega-verify extract --llvm-source /path/to/llvm --backend riscv
+
+# Verify a function
+vega-verify verify --code function.cpp --spec spec.json
+
+# Repair a buggy function
+vega-verify repair --code buggy.cpp --spec spec.json --save-repaired
+
+# Run experiments
+vega-verify experiment --all
+vega-verify experiment --experiment verification --backend riscv
+
+# Generate reports
+vega-verify report --format markdown
+vega-verify report --format latex --template paper
+```
+
+### Examples
+
+```bash
+# Quick verification test
+vega-verify experiment --experiment verification --sample-size 10
+
+# Full RISCV backend evaluation
+vega-verify experiment --experiment verification --backend riscv --sample-size 500
+
+# VEGA vs VEGA-Verified comparison
+vega-verify experiment --experiment comparison --sample-size 100
+
+# Ablation study
+vega-verify experiment --experiment ablation
+```
+
+---
+
+## 📊 Paper Reproduction
+
+### Quick Reproduction
+
+```bash
+# Using the reproduction script
+./scripts/reproduce_experiments.sh --all
+
+# Or with Docker
+docker run -it --rm -v $(pwd)/results:/app/results vega-verified \
+    ./scripts/reproduce_experiments.sh --all
+```
+
+### Step-by-Step Reproduction
+
+```bash
+# 1. Run verification experiments
+vega-verify experiment --experiment verification --backend all --sample-size 500
+
+# 2. Run repair experiments  
+vega-verify experiment --experiment repair --sample-size 100
+
+# 3. Run comparison (VEGA vs VEGA-Verified)
+vega-verify experiment --experiment comparison
+
+# 4. Run ablation study
+vega-verify experiment --experiment ablation
+
+# 5. Generate paper tables/figures
+vega-verify report --format latex --template paper
+```
+
+### Expected Results
+
+| Experiment | Metric | Expected Value |
+|------------|--------|----------------|
+| Verification | Accuracy | 75-85% |
+| Repair | Success Rate | 60-75% |
+| Comparison | Improvement over VEGA | +10-15pp |
+| Ablation | SMT contribution | +15-20pp |
+
+> **Note**: Results may vary due to mock components. See [Limitations](#-important-implementation-status--limitations) section.
+
+### Reproduction Outputs
+
+```
+results/
+├── experiments_YYYYMMDD_HHMMSS.json  # Raw results
+├── report_paper.md                    # Markdown report
+├── report_paper.tex                   # LaTeX tables
+└── reproduction_YYYYMMDD_HHMMSS.log  # Execution log
+```
+
+---
+
+## 📁 Project Structure
 
 ```
 webapp/
-├── Dockerfile              # GPU 지원 Docker 환경 (CUDA 11.7)
-├── Dockerfile.light        # CPU 전용 경량 Docker 환경
-├── build_and_run.sh        # Docker 빌드 및 실행 스크립트
-├── run_vega_tests.sh       # 테스트 실행 스크립트
-├── VEGA_Analysis_Report.md # 상세 분석 보고서
+├── Dockerfile.unified          # All-in-one Docker image
+├── requirements.txt            # Python dependencies
+├── setup.py                    # Package installation
+├── scripts/
+│   └── reproduce_experiments.sh  # Paper reproduction script
+├── src/
+│   ├── cli.py                  # CLI entry point (vega-verify)
+│   ├── main.py                 # Legacy entry point
+│   ├── verification/
+│   │   ├── semantic_analyzer.py  # Phase 2.1: Pattern recognition
+│   │   ├── ir_to_smt.py          # Phase 2.2: IR → Z3 translation
+│   │   ├── switch_verifier.py    # Switch statement verification
+│   │   └── verifier.py           # Main verifier interface
+│   ├── repair/
+│   │   ├── training_data.py      # Phase 2.3: Training data generation
+│   │   ├── model_finetuning.py   # Phase 2.3: Model fine-tuning
+│   │   ├── neural_model.py       # Neural repair model
+│   │   ├── cgnr.py               # CGNR algorithm
+│   │   └── switch_repair.py      # Switch-specific repair
+│   ├── integration/
+│   │   ├── cgnr_pipeline.py      # Phase 2.4: End-to-end pipeline
+│   │   └── vega_adapter.py       # VEGA model interface
+│   ├── specification/
+│   │   └── spec_language.py      # Formal specification DSL
+│   ├── llvm_extraction/
+│   │   └── ...                   # LLVM source extraction
+│   └── utils/
+│       └── ...                   # Utilities
 ├── tests/
-│   ├── matmul_test.cpp         # MatMul correctness 테스트
-│   ├── vega_simulator.py       # VEGA 워크플로우 시뮬레이터
-│   └── vega_verified_prototype.py  # VEGA-Verified 제안 프로토타입
-└── results/                # 테스트 결과 저장소
+│   ├── test_phase1_infrastructure.py
+│   ├── test_phase2_complete.py
+│   └── ...
+├── data/
+│   ├── llvm_functions_multi.json   # Extracted functions
+│   ├── llvm_ground_truth.json      # Ground truth database
+│   └── llvm_riscv_ast.json         # RISCV AST data
+└── docker/
+    ├── Dockerfile.llvm             # LLVM build environment
+    └── tools/
+        └── ast_extractor.cpp       # Clang LibTooling extractor
 ```
 
-## 빠른 시작
+---
 
-### 1. Docker 이미지 빌드
+## 🧪 Development
+
+### Running Tests
+
 ```bash
-# 경량 버전 (CPU만)
-docker build -t vega-light -f Dockerfile.light .
+# All tests
+python -m pytest tests/ -v
 
-# 전체 버전 (GPU 지원)
-docker build -t vega-reproduction .
+# Specific test files
+python -m pytest tests/test_phase2_complete.py -v
+
+# With coverage
+python -m pytest tests/ --cov=src --cov-report=html
 ```
 
-### 2. 테스트 실행
+### Code Quality
+
 ```bash
-# VEGA 시뮬레이터 실행
-docker run --rm -v "$(pwd)/tests:/workspace/tests" vega-light \
-    python3 /workspace/tests/vega_simulator.py
+# Format code
+black src/ tests/
 
-# MatMul 테스트
-docker run --rm -v "$(pwd)/tests:/workspace/tests" vega-light \
-    bash -c "cd /workspace/tests && g++ -O2 matmul_test.cpp -o matmul && ./matmul"
+# Sort imports
+isort src/ tests/
 
-# VEGA-Verified 프로토타입
-docker run --rm -v "$(pwd)/tests:/workspace/tests" vega-light \
-    python3 /workspace/tests/vega_verified_prototype.py
+# Type checking
+mypy src/
 ```
 
-## VEGA 논문 핵심 분석
+### Current Test Status
 
-### 강점
-- AI 기반 컴파일러 백엔드 자동 생성의 첫 성공 사례
-- Function template abstraction을 통한 cross-target 일반화
-- 71.5%+ function-level accuracy (기존 fork-flow <8% 대비)
-- Confidence score를 통한 human-in-the-loop 지원
+```
+Tests: 123 passing
+├── Phase 1 Infrastructure: 76 tests ✅
+├── Phase 2 Complete: 47 tests ✅
+└── Total: 123 tests ✅
+```
 
-### 약점 (8가지 주요 한계)
-1. **형식적 의미론 검증 부재** - 생성 코드의 correctness 보장 불가
-2. **제한된 함수 모듈 커버리지** - 7개 모듈만 지원 (~60%)
-3. **훈련 데이터 의존성** - 기존 백엔드 패턴에서만 학습
-4. **Statement-level 한계** - Cross-statement 최적화 어려움
-5. **TableGen 의존성** - 타겟 설명 파일 필수
-6. **LLVM 종속** - GCC 등 타 컴파일러 적용 불가
-7. **Confidence Score 한계** - Binary classification의 표현력
-8. **Instruction Selection 미지원** - 핵심 부분 수동 작업 필요
+---
 
-## 제안: VEGA-Verified
+## 📈 Data Statistics
 
-### 핵심 아이디어
-VEGA의 신경망 기반 코드 생성과 형식 검증을 결합하여 **의미론적 정확성을 보장**
+### Extracted LLVM Functions
 
-### 3가지 Main Contributions
+| Backend | Functions | Switch Statements |
+|---------|-----------|-------------------|
+| RISCV | 480 | 63 |
+| ARM | 498 | 57 |
+| AArch64 | 645 | 49 |
+| X86 | 947 | 162 |
+| **Total** | **2,570** | **331** |
 
-#### 1. Automated Semantic Specification Inference
-- 참조 백엔드에서 자동으로 formal specification 추론
-- Abstract interpretation 및 invariant detection 활용
-- **차별점**: ACT(manual), Hydride(vendor docs) 대비 fully automatic
+---
 
-#### 2. Counterexample-Guided Neural Repair (CGNR)
-- 검증 실패 시 counterexample 기반 자동 수정
-- CEGAR 원리를 neural repair에 적용
-- **차별점**: 기존 CEGIS(scalability 문제) 대비 neural + formal hybrid
-
-#### 3. Hierarchical Verification with Modular Composability
-- Function → Module → Backend 3단계 계층적 검증
-- Interface contract를 통한 모듈 간 composability
-- **차별점**: 기존 monolithic 검증 대비 incremental, scalable
-
-### 기대 효과
-
-| Metric | VEGA | VEGA-Verified |
-|--------|------|---------------|
-| Function Accuracy | 71.5% | 85-90% |
-| Semantic Correctness | Unknown | 100% (verified) |
-| Verification Coverage | 0% | 80-90% |
-
-## 관련 연구 비교
-
-| 연구 | 접근법 | 강점 | 약점 |
-|------|--------|------|------|
-| VEGA | Neural | 자동화, 속도 | 검증 없음 |
-| Hydride | Synthesis | 벡터 최적화 | 확장성 |
-| ACT | E-graph | Formal guarantee | Tensor only |
-| OpenVADL | ADL | 완전 자동 | 새 DSL 필요 |
-| **VEGA-Verified** | **Hybrid** | **자동화 + 검증** | 추가 시간 |
-
-## 파일 설명
-
-### `tests/vega_simulator.py`
-VEGA의 핵심 워크플로우를 시뮬레이션:
-- Function template 생성
-- Feature vector 추출 (TI/TS 구분)
-- Target-specific 코드 생성
-- Confidence score 분석
-
-### `tests/vega_verified_prototype.py`
-제안하는 VEGA-Verified 시스템 프로토타입:
-- `SpecificationInferrer`: 자동 specification 추론
-- `CounterexampleGuidedRepair`: CGNR 알고리즘
-- `HierarchicalVerifier`: 3단계 계층적 검증
-- `FormalVerifier`: 간이 SMT 기반 검증기
-
-### `tests/matmul_test.cpp`
-MatMul correctness 테스트:
-- Naive, tiled, vectorized 구현
-- Cross-validation을 통한 정확성 검증
-
-## 향후 작업
-
-1. **Z3 통합**: 실제 SMT solver 활용
-2. **Neural Repair 모델 학습**: (buggy, counterexample, fixed) 데이터셋
-3. **LLVM 통합**: 실제 백엔드 코드에 적용
-4. **벤치마크**: SPEC 등 표준 벤치마크 평가
-
-## 참고문헌
+## 🔗 References
 
 1. Zhong et al., "VEGA: Automatically Generating Compiler Backends Using a Pre-Trained Transformer Model", CGO 2025
-2. Kothen et al., "Hydride: A Retargetable Synthesis-based Compiler", ASPLOS 2024
-3. "ACT: Automatically Generating Compiler Backends from Tensor Accelerator ISA Descriptions", 2025
-4. Tate et al., "Equality Saturation: A New Approach to Optimization", POPL 2009
-5. Guo et al., "UniXcoder: Unified Cross-Modal Pre-training for Code Representation", ACL 2022
+2. [LLVM Documentation](https://llvm.org/docs/)
+3. [Z3 Solver Guide](https://microsoft.github.io/z3guide/)
+4. Guo et al., "UniXcoder: Unified Cross-Modal Pre-training for Code Representation", ACL 2022
 
-## 라이선스
+---
+
+## 📜 License
 
 MIT License
+
+---
+
+## 🙏 Acknowledgments
+
+- VEGA authors for the original neural compiler backend generation approach
+- LLVM community for the compiler infrastructure
+- Z3 team for the SMT solver
+
+---
+
+## 📧 Contact
+
+For questions about this implementation, please open an issue on GitHub.

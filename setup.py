@@ -51,6 +51,7 @@ setup(
     
     entry_points={
         "console_scripts": [
+            "vega-verify=src.cli:main",
             "vega-verified=src.main:main",
         ],
     },
