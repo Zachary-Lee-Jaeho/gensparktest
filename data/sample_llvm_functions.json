@@ -1,0 +1,2337 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-22T11:16:54.291912",
+  "stats": {
+    "note": "Sample database for testing (50 functions)",
+    "full_database_stats": {
+      "total_functions": 3431,
+      "total_modules": 0,
+      "total_backends": 5,
+      "last_updated": "2026-01-22T11:16:54.291831"
+    }
+  },
+  "functions": {
+    "19508f6fbd6a5313": {
+      "id": "19508f6fbd6a5313",
+      "name": "MCII",
+      "full_name": "MCII",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 48,
+      "end_line": 48,
+      "return_type": ",",
+      "parameters": [
+        {
+          "type": "MCII",
+          "name": ""
+        }
+      ],
+      "qualifiers": [],
+      "body": "",
+      "raw_code": ", MCII(MCII) {}",
+      "line_count": 1,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691666",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "b97e102490bc412f": {
+      "id": "b97e102490bc412f",
+      "name": "expandFunctionCall",
+      "full_name": "RISCVMCCodeEmitter::expandFunctionCall",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 118,
+      "end_line": 159,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  MCInst TmpInst;\n  MCOperand Func;\n  MCRegister Ra;\n  if (MI.getOpcode() == RISCV::PseudoTAIL) {\n    Func = MI.getOperand(0);\n    Ra = RISCV::X6;\n  } else if (MI.getOpcode() == RISCV::PseudoCALLReg) {\n    Func = MI.getOperand(1);\n    Ra = MI.getOperand(0).getReg();\n  } else if (MI.getOpcode() == RISCV::PseudoCALL) {\n    Func = MI.getOperand(0);\n    Ra = RISCV::X1;\n  } else if (MI.getOpcode() == RISCV::PseudoJump) {\n    Func = MI.getOperand(1);\n    Ra = MI.getOperand(0).getReg();\n  }\n  uint32_t Binary;\n\n  assert(Func.isExpr() && \"Expected expression\");\n\n  const MCExpr *CallExpr = Func.getExpr();\n\n  // Emit AUIPC Ra, Func with R_RISCV_CALL relocation type.\n  TmpInst = MCInstBuilder(RISCV::AUIPC).addReg(Ra).addExpr(CallExpr);\n  Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n\n  if (MI.getOpcode() == RISCV::PseudoTAIL ||\n      MI.getOpcode() == RISCV::PseudoJump)\n    // Emit JALR X0, Ra, 0\n    TmpInst = MCInstBuilder(RISCV::JALR).addReg(RISCV::X0).addReg(Ra).addImm(0);\n  else\n    // Emit JALR Ra, Ra, 0\n    TmpInst = MCInstBuilder(RISCV::JALR).addReg(Ra).addReg(Ra).addImm(0);\n  Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n",
+      "raw_code": "\nvoid RISCVMCCodeEmitter::expandFunctionCall(const MCInst &MI,\n                                            SmallVectorImpl<char> &CB,\n                                            SmallVectorImpl<MCFixup> &Fixups,\n                                            const MCSubtargetInfo &STI) const {\n  MCInst TmpInst;\n  MCOperand Func;\n  MCRegister Ra;\n  if (MI.getOpcode() == RISCV::PseudoTAIL) {\n    Func = MI.getOperand(0);\n    Ra = RISCV::X6;\n  } else if (MI.getOpcode() == RISCV::PseudoCALLReg) {\n    Func = MI.getOperand(1);\n    Ra = MI.getOperand(0).getReg();\n  } else if (MI.getOpcode() == RISCV::PseudoCALL) {\n    Func = MI.getOperand(0);\n    Ra = RISCV::X1;\n  } else if (MI.getOpcode() == RISCV::PseudoJump) {\n    Func = MI.getOperand(1);\n    Ra = MI.getOperand(0).getReg();\n  }\n  uint32_t Binary;\n\n  assert(Func.isExpr() && \"Expected expression\");\n\n  const MCExpr *CallExpr = Func.getExpr();\n\n  // Emit AUIPC Ra, Func with R_RISCV_CALL relocation type.\n  TmpInst = MCInstBuilder(RISCV::AUIPC).addReg(Ra).addExpr(CallExpr);\n  Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n\n  if (MI.getOpcode() == RISCV::PseudoTAIL ||\n      MI.getOpcode() == RISCV::PseudoJump)\n    // Emit JALR X0, Ra, 0\n    TmpInst = MCInstBuilder(RISCV::JALR).addReg(RISCV::X0).addReg(Ra).addImm(0);\n  else\n    // Emit JALR Ra, Ra, 0\n    TmpInst = MCInstBuilder(RISCV::JALR).addReg(Ra).addReg(Ra).addImm(0);\n  Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n}",
+      "line_count": 42,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "addReg",
+        "getOpcode",
+        "addExpr",
+        "write",
+        "addImm",
+        "getOperand",
+        "getExpr",
+        "getBinaryCodeForInstr",
+        "getReg",
+        "MCInstBuilder",
+        "isExpr"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691706",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "4e6a7d54c784fe7c": {
+      "id": "4e6a7d54c784fe7c",
+      "name": "expandTLSDESCCall",
+      "full_name": "RISCVMCCodeEmitter::expandTLSDESCCall",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 159,
+      "end_line": 179,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  MCOperand SrcSymbol = MI.getOperand(3);\n  assert(SrcSymbol.isExpr() &&\n         \"Expected expression as first input to TLSDESCCALL\");\n  const RISCVMCExpr *Expr = dyn_cast<RISCVMCExpr>(SrcSymbol.getExpr());\n  MCRegister Link = MI.getOperand(0).getReg();\n  MCRegister Dest = MI.getOperand(1).getReg();\n  MCRegister Imm = MI.getOperand(2).getImm();\n  Fixups.push_back(MCFixup::create(\n      0, Expr, MCFixupKind(RISCV::fixup_riscv_tlsdesc_call), MI.getLoc()));\n  MCInst Call =\n      MCInstBuilder(RISCV::JALR).addReg(Link).addReg(Dest).addImm(Imm);\n\n  uint32_t Binary = getBinaryCodeForInstr(Call, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n",
+      "raw_code": "\n\nvoid RISCVMCCodeEmitter::expandTLSDESCCall(const MCInst &MI,\n                                           SmallVectorImpl<char> &CB,\n                                           SmallVectorImpl<MCFixup> &Fixups,\n                                           const MCSubtargetInfo &STI) const {\n  MCOperand SrcSymbol = MI.getOperand(3);\n  assert(SrcSymbol.isExpr() &&\n         \"Expected expression as first input to TLSDESCCALL\");\n  const RISCVMCExpr *Expr = dyn_cast<RISCVMCExpr>(SrcSymbol.getExpr());\n  MCRegister Link = MI.getOperand(0).getReg();\n  MCRegister Dest = MI.getOperand(1).getReg();\n  MCRegister Imm = MI.getOperand(2).getImm();\n  Fixups.push_back(MCFixup::create(\n      0, Expr, MCFixupKind(RISCV::fixup_riscv_tlsdesc_call), MI.getLoc()));\n  MCInst Call =\n      MCInstBuilder(RISCV::JALR).addReg(Link).addReg(Dest).addImm(Imm);\n\n  uint32_t Binary = getBinaryCodeForInstr(Call, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n}",
+      "line_count": 21,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "push_back",
+        "addReg",
+        "MCFixupKind",
+        "addImm",
+        "write",
+        "getExpr",
+        "getOperand",
+        "getBinaryCodeForInstr",
+        "getReg",
+        "getLoc",
+        "getImm",
+        "create",
+        "MCInstBuilder",
+        "isExpr"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691716",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "f85813bcd4d76a7a": {
+      "id": "f85813bcd4d76a7a",
+      "name": "expandAddTPRel",
+      "full_name": "RISCVMCCodeEmitter::expandAddTPRel",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 181,
+      "end_line": 218,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  MCOperand DestReg = MI.getOperand(0);\n  MCOperand SrcReg = MI.getOperand(1);\n  MCOperand TPReg = MI.getOperand(2);\n  assert(TPReg.isReg() && TPReg.getReg() == RISCV::X4 &&\n         \"Expected thread pointer as second input to TP-relative add\");\n\n  MCOperand SrcSymbol = MI.getOperand(3);\n  assert(SrcSymbol.isExpr() &&\n         \"Expected expression as third input to TP-relative add\");\n\n  const RISCVMCExpr *Expr = dyn_cast<RISCVMCExpr>(SrcSymbol.getExpr());\n  assert(Expr && Expr->getKind() == RISCVMCExpr::VK_RISCV_TPREL_ADD &&\n         \"Expected tprel_add relocation on TP-relative symbol\");\n\n  // Emit the correct tprel_add relocation for the symbol.\n  Fixups.push_back(MCFixup::create(\n      0, Expr, MCFixupKind(RISCV::fixup_riscv_tprel_add), MI.getLoc()));\n\n  // Emit fixup_riscv_relax for tprel_add where the relax feature is enabled.\n  if (STI.hasFeature(RISCV::FeatureRelax)) {\n    const MCConstantExpr *Dummy = MCConstantExpr::create(0, Ctx);\n    Fixups.push_back(MCFixup::create(\n        0, Dummy, MCFixupKind(RISCV::fixup_riscv_relax), MI.getLoc()));\n  }\n\n  // Emit a normal ADD instruction with the given operands.\n  MCInst TmpInst = MCInstBuilder(RISCV::ADD)\n                       .addOperand(DestReg)\n                       .addOperand(SrcReg)\n                       .addOperand(TPReg);\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n",
+      "raw_code": "\nvoid RISCVMCCodeEmitter::expandAddTPRel(const MCInst &MI,\n                                        SmallVectorImpl<char> &CB,\n                                        SmallVectorImpl<MCFixup> &Fixups,\n                                        const MCSubtargetInfo &STI) const {\n  MCOperand DestReg = MI.getOperand(0);\n  MCOperand SrcReg = MI.getOperand(1);\n  MCOperand TPReg = MI.getOperand(2);\n  assert(TPReg.isReg() && TPReg.getReg() == RISCV::X4 &&\n         \"Expected thread pointer as second input to TP-relative add\");\n\n  MCOperand SrcSymbol = MI.getOperand(3);\n  assert(SrcSymbol.isExpr() &&\n         \"Expected expression as third input to TP-relative add\");\n\n  const RISCVMCExpr *Expr = dyn_cast<RISCVMCExpr>(SrcSymbol.getExpr());\n  assert(Expr && Expr->getKind() == RISCVMCExpr::VK_RISCV_TPREL_ADD &&\n         \"Expected tprel_add relocation on TP-relative symbol\");\n\n  // Emit the correct tprel_add relocation for the symbol.\n  Fixups.push_back(MCFixup::create(\n      0, Expr, MCFixupKind(RISCV::fixup_riscv_tprel_add), MI.getLoc()));\n\n  // Emit fixup_riscv_relax for tprel_add where the relax feature is enabled.\n  if (STI.hasFeature(RISCV::FeatureRelax)) {\n    const MCConstantExpr *Dummy = MCConstantExpr::create(0, Ctx);\n    Fixups.push_back(MCFixup::create(\n        0, Dummy, MCFixupKind(RISCV::fixup_riscv_relax), MI.getLoc()));\n  }\n\n  // Emit a normal ADD instruction with the given operands.\n  MCInst TmpInst = MCInstBuilder(RISCV::ADD)\n                       .addOperand(DestReg)\n                       .addOperand(SrcReg)\n                       .addOperand(TPReg);\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n}",
+      "line_count": 38,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "isReg",
+        "push_back",
+        "MCFixupKind",
+        "addOperand",
+        "write",
+        "getOperand",
+        "getExpr",
+        "getBinaryCodeForInstr",
+        "getReg",
+        "getLoc",
+        "create",
+        "MCInstBuilder",
+        "getKind",
+        "isExpr",
+        "hasFeature"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691724",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "9e29946d62ae7a2f": {
+      "id": "9e29946d62ae7a2f",
+      "name": "getInvertedBranchOp",
+      "full_name": "getInvertedBranchOp",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 218,
+      "end_line": 237,
+      "return_type": "static unsigned",
+      "parameters": [
+        {
+          "type": "unsigned",
+          "name": "BrOp"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  switch (BrOp) {\n  default:\n    llvm_unreachable(\"Unexpected branch opcode!\");\n  case RISCV::PseudoLongBEQ:\n    return RISCV::BNE;\n  case RISCV::PseudoLongBNE:\n    return RISCV::BEQ;\n  case RISCV::PseudoLongBLT:\n    return RISCV::BGE;\n  case RISCV::PseudoLongBGE:\n    return RISCV::BLT;\n  case RISCV::PseudoLongBLTU:\n    return RISCV::BGEU;\n  case RISCV::PseudoLongBGEU:\n    return RISCV::BLTU;\n  }\n",
+      "raw_code": "\n\nstatic unsigned getInvertedBranchOp(unsigned BrOp) {\n  switch (BrOp) {\n  default:\n    llvm_unreachable(\"Unexpected branch opcode!\");\n  case RISCV::PseudoLongBEQ:\n    return RISCV::BNE;\n  case RISCV::PseudoLongBNE:\n    return RISCV::BEQ;\n  case RISCV::PseudoLongBLT:\n    return RISCV::BGE;\n  case RISCV::PseudoLongBGE:\n    return RISCV::BLT;\n  case RISCV::PseudoLongBLTU:\n    return RISCV::BGEU;\n  case RISCV::PseudoLongBGEU:\n    return RISCV::BLTU;\n  }\n}",
+      "line_count": 20,
+      "has_switch": true,
+      "switch_patterns": [
+        {
+          "switch_variable": "BrOp",
+          "cases": [
+            [
+              "RISCV::PseudoLongBEQ",
+              "RISCV::BNE"
+            ],
+            [
+              "RISCV::PseudoLongBNE",
+              "RISCV::BEQ"
+            ],
+            [
+              "RISCV::PseudoLongBLT",
+              "RISCV::BGE"
+            ],
+            [
+              "RISCV::PseudoLongBGE",
+              "RISCV::BLT"
+            ],
+            [
+              "RISCV::PseudoLongBLTU",
+              "RISCV::BGEU"
+            ],
+            [
+              "RISCV::PseudoLongBGEU",
+              "RISCV::BLTU"
+            ]
+          ],
+          "default_value": null,
+          "has_ternary_ispcrel": false,
+          "num_cases": 6
+        }
+      ],
+      "called_functions": [
+        "llvm_unreachable"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691732",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "ca59c4de6ae32e17": {
+      "id": "ca59c4de6ae32e17",
+      "name": "expandLongCondBr",
+      "full_name": "RISCVMCCodeEmitter::expandLongCondBr",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 240,
+      "end_line": 294,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  MCRegister SrcReg1 = MI.getOperand(0).getReg();\n  MCRegister SrcReg2 = MI.getOperand(1).getReg();\n  MCOperand SrcSymbol = MI.getOperand(2);\n  unsigned Opcode = MI.getOpcode();\n  bool IsEqTest =\n      Opcode == RISCV::PseudoLongBNE || Opcode == RISCV::PseudoLongBEQ;\n\n  bool UseCompressedBr = false;\n  if (IsEqTest && (STI.hasFeature(RISCV::FeatureStdExtC) ||\n                   STI.hasFeature(RISCV::FeatureStdExtZca))) {\n    if (RISCV::X8 <= SrcReg1.id() && SrcReg1.id() <= RISCV::X15 &&\n        SrcReg2.id() == RISCV::X0) {\n      UseCompressedBr = true;\n    } else if (RISCV::X8 <= SrcReg2.id() && SrcReg2.id() <= RISCV::X15 &&\n               SrcReg1.id() == RISCV::X0) {\n      std::swap(SrcReg1, SrcReg2);\n      UseCompressedBr = true;\n    }\n  }\n\n  uint32_t Offset;\n  if (UseCompressedBr) {\n    unsigned InvOpc =\n        Opcode == RISCV::PseudoLongBNE ? RISCV::C_BEQZ : RISCV::C_BNEZ;\n    MCInst TmpInst = MCInstBuilder(InvOpc).addReg(SrcReg1).addImm(6);\n    uint16_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    support::endian::write<uint16_t>(CB, Binary, llvm::endianness::little);\n    Offset = 2;\n  } else {\n    unsigned InvOpc = getInvertedBranchOp(Opcode);\n    MCInst TmpInst =\n        MCInstBuilder(InvOpc).addReg(SrcReg1).addReg(SrcReg2).addImm(8);\n    uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    support::endian::write(CB, Binary, llvm::endianness::little);\n    Offset = 4;\n  }\n\n  // Emit an unconditional jump to the destination.\n  MCInst TmpInst =\n      MCInstBuilder(RISCV::JAL).addReg(RISCV::X0).addOperand(SrcSymbol);\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n\n  Fixups.clear();\n  if (SrcSymbol.isExpr()) {\n    Fixups.push_back(MCFixup::create(Offset, SrcSymbol.getExpr(),\n                                     MCFixupKind(RISCV::fixup_riscv_jal),\n                                     MI.getLoc()));\n  }\n",
+      "raw_code": "\nvoid RISCVMCCodeEmitter::expandLongCondBr(const MCInst &MI,\n                                          SmallVectorImpl<char> &CB,\n                                          SmallVectorImpl<MCFixup> &Fixups,\n                                          const MCSubtargetInfo &STI) const {\n  MCRegister SrcReg1 = MI.getOperand(0).getReg();\n  MCRegister SrcReg2 = MI.getOperand(1).getReg();\n  MCOperand SrcSymbol = MI.getOperand(2);\n  unsigned Opcode = MI.getOpcode();\n  bool IsEqTest =\n      Opcode == RISCV::PseudoLongBNE || Opcode == RISCV::PseudoLongBEQ;\n\n  bool UseCompressedBr = false;\n  if (IsEqTest && (STI.hasFeature(RISCV::FeatureStdExtC) ||\n                   STI.hasFeature(RISCV::FeatureStdExtZca))) {\n    if (RISCV::X8 <= SrcReg1.id() && SrcReg1.id() <= RISCV::X15 &&\n        SrcReg2.id() == RISCV::X0) {\n      UseCompressedBr = true;\n    } else if (RISCV::X8 <= SrcReg2.id() && SrcReg2.id() <= RISCV::X15 &&\n               SrcReg1.id() == RISCV::X0) {\n      std::swap(SrcReg1, SrcReg2);\n      UseCompressedBr = true;\n    }\n  }\n\n  uint32_t Offset;\n  if (UseCompressedBr) {\n    unsigned InvOpc =\n        Opcode == RISCV::PseudoLongBNE ? RISCV::C_BEQZ : RISCV::C_BNEZ;\n    MCInst TmpInst = MCInstBuilder(InvOpc).addReg(SrcReg1).addImm(6);\n    uint16_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    support::endian::write<uint16_t>(CB, Binary, llvm::endianness::little);\n    Offset = 2;\n  } else {\n    unsigned InvOpc = getInvertedBranchOp(Opcode);\n    MCInst TmpInst =\n        MCInstBuilder(InvOpc).addReg(SrcReg1).addReg(SrcReg2).addImm(8);\n    uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    support::endian::write(CB, Binary, llvm::endianness::little);\n    Offset = 4;\n  }\n\n  // Emit an unconditional jump to the destination.\n  MCInst TmpInst =\n      MCInstBuilder(RISCV::JAL).addReg(RISCV::X0).addOperand(SrcSymbol);\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n  support::endian::write(CB, Binary, llvm::endianness::little);\n\n  Fixups.clear();\n  if (SrcSymbol.isExpr()) {\n    Fixups.push_back(MCFixup::create(Offset, SrcSymbol.getExpr(),\n                                     MCFixupKind(RISCV::fixup_riscv_jal),\n                                     MI.getLoc()));\n  }\n}",
+      "line_count": 55,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getReg",
+        "getLoc",
+        "create",
+        "isExpr",
+        "push_back",
+        "getOpcode",
+        "addOperand",
+        "write",
+        "getOperand",
+        "getExpr",
+        "MCInstBuilder",
+        "addReg",
+        "MCFixupKind",
+        "swap",
+        "clear",
+        "hasFeature",
+        "getInvertedBranchOp",
+        "getBinaryCodeForInstr",
+        "id",
+        "addImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691739",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "08398343e69ab6b8": {
+      "id": "08398343e69ab6b8",
+      "name": "encodeInstruction",
+      "full_name": "RISCVMCCodeEmitter::encodeInstruction",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 294,
+      "end_line": 352,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCInstrDesc &Desc = MCII.get(MI.getOpcode());\n  // Get byte count of instruction.\n  unsigned Size = Desc.getSize();\n\n  // RISCVInstrInfo::getInstSizeInBytes expects that the total size of the\n  // expanded instructions for each pseudo is correct in the Size field of the\n  // tablegen definition for the pseudo.\n  switch (MI.getOpcode()) {\n  default:\n    break;\n  case RISCV::PseudoCALLReg:\n  case RISCV::PseudoCALL:\n  case RISCV::PseudoTAIL:\n  case RISCV::PseudoJump:\n    expandFunctionCall(MI, CB, Fixups, STI);\n    MCNumEmitted += 2;\n    return;\n  case RISCV::PseudoAddTPRel:\n    expandAddTPRel(MI, CB, Fixups, STI);\n    MCNumEmitted += 1;\n    return;\n  case RISCV::PseudoLongBEQ:\n  case RISCV::PseudoLongBNE:\n  case RISCV::PseudoLongBLT:\n  case RISCV::PseudoLongBGE:\n  case RISCV::PseudoLongBLTU:\n  case RISCV::PseudoLongBGEU:\n    expandLongCondBr(MI, CB, Fixups, STI);\n    MCNumEmitted += 2;\n    return;\n  case RISCV::PseudoTLSDESCCall:\n    expandTLSDESCCall(MI, CB, Fixups, STI);\n    MCNumEmitted += 1;\n    return;\n  }\n\n  switch (Size) {\n  default:\n    llvm_unreachable(\"Unhandled encodeInstruction length!\");\n  case 2: {\n    uint16_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);\n    support::endian::write<uint16_t>(CB, Bits, llvm::endianness::little);\n    break;\n  }\n  case 4: {\n    uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);\n    support::endian::write(CB, Bits, llvm::endianness::little);\n    break;\n  }\n  }\n\n  ++MCNumEmitted; // Keep track of the # of mi's emitted.\n",
+      "raw_code": "\n\nvoid RISCVMCCodeEmitter::encodeInstruction(const MCInst &MI,\n                                           SmallVectorImpl<char> &CB,\n                                           SmallVectorImpl<MCFixup> &Fixups,\n                                           const MCSubtargetInfo &STI) const {\n  const MCInstrDesc &Desc = MCII.get(MI.getOpcode());\n  // Get byte count of instruction.\n  unsigned Size = Desc.getSize();\n\n  // RISCVInstrInfo::getInstSizeInBytes expects that the total size of the\n  // expanded instructions for each pseudo is correct in the Size field of the\n  // tablegen definition for the pseudo.\n  switch (MI.getOpcode()) {\n  default:\n    break;\n  case RISCV::PseudoCALLReg:\n  case RISCV::PseudoCALL:\n  case RISCV::PseudoTAIL:\n  case RISCV::PseudoJump:\n    expandFunctionCall(MI, CB, Fixups, STI);\n    MCNumEmitted += 2;\n    return;\n  case RISCV::PseudoAddTPRel:\n    expandAddTPRel(MI, CB, Fixups, STI);\n    MCNumEmitted += 1;\n    return;\n  case RISCV::PseudoLongBEQ:\n  case RISCV::PseudoLongBNE:\n  case RISCV::PseudoLongBLT:\n  case RISCV::PseudoLongBGE:\n  case RISCV::PseudoLongBLTU:\n  case RISCV::PseudoLongBGEU:\n    expandLongCondBr(MI, CB, Fixups, STI);\n    MCNumEmitted += 2;\n    return;\n  case RISCV::PseudoTLSDESCCall:\n    expandTLSDESCCall(MI, CB, Fixups, STI);\n    MCNumEmitted += 1;\n    return;\n  }\n\n  switch (Size) {\n  default:\n    llvm_unreachable(\"Unhandled encodeInstruction length!\");\n  case 2: {\n    uint16_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);\n    support::endian::write<uint16_t>(CB, Bits, llvm::endianness::little);\n    break;\n  }\n  case 4: {\n    uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);\n    support::endian::write(CB, Bits, llvm::endianness::little);\n    break;\n  }\n  }\n\n  ++MCNumEmitted; // Keep track of the # of mi's emitted.\n}",
+      "line_count": 59,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "expandLongCondBr",
+        "expandTLSDESCCall",
+        "getOpcode",
+        "write",
+        "expandFunctionCall",
+        "getBinaryCodeForInstr",
+        "getSize",
+        "get",
+        "expandAddTPRel",
+        "llvm_unreachable"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691745",
+      "is_interface": true,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "14dba4ff9291fca6": {
+      "id": "14dba4ff9291fca6",
+      "name": "getMachineOpValue",
+      "full_name": "RISCVMCCodeEmitter::getMachineOpValue",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 352,
+      "end_line": 367,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "const MCOperand&",
+          "name": "MO"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n\n  if (MO.isReg())\n    return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());\n\n  if (MO.isImm())\n    return static_cast<unsigned>(MO.getImm());\n\n  llvm_unreachable(\"Unhandled expression!\");\n  return 0;\n",
+      "raw_code": "\n\nunsigned\nRISCVMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,\n                                      SmallVectorImpl<MCFixup> &Fixups,\n                                      const MCSubtargetInfo &STI) const {\n\n  if (MO.isReg())\n    return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());\n\n  if (MO.isImm())\n    return static_cast<unsigned>(MO.getImm());\n\n  llvm_unreachable(\"Unhandled expression!\");\n  return 0;\n}",
+      "line_count": 16,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "isReg",
+        "getReg",
+        "isImm",
+        "getEncodingValue",
+        "getRegisterInfo",
+        "llvm_unreachable",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691751",
+      "is_interface": true,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "1a57225a7da795cc": {
+      "id": "1a57225a7da795cc",
+      "name": "getImmOpValueAsr1",
+      "full_name": "RISCVMCCodeEmitter::getImmOpValueAsr1",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 367,
+      "end_line": 382,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNo"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  if (MO.isImm()) {\n    unsigned Res = MO.getImm();\n    assert((Res & 1) == 0 && \"LSB is non-zero\");\n    return Res >> 1;\n  }\n\n  return getImmOpValue(MI, OpNo, Fixups, STI);\n",
+      "raw_code": "\n\nunsigned\nRISCVMCCodeEmitter::getImmOpValueAsr1(const MCInst &MI, unsigned OpNo,\n                                      SmallVectorImpl<MCFixup> &Fixups,\n                                      const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  if (MO.isImm()) {\n    unsigned Res = MO.getImm();\n    assert((Res & 1) == 0 && \"LSB is non-zero\");\n    return Res >> 1;\n  }\n\n  return getImmOpValue(MI, OpNo, Fixups, STI);\n}",
+      "line_count": 16,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "getOperand",
+        "isImm",
+        "getImmOpValue",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691757",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "032c2355b72b1b0e": {
+      "id": "032c2355b72b1b0e",
+      "name": "getImmOpValue",
+      "full_name": "RISCVMCCodeEmitter::getImmOpValue",
+      "backend": "RISCV",
+      "module": "MCCodeEmitter",
+      "file_path": "RISCV/MCTargetDesc/RISCVMCCodeEmitter.cpp",
+      "start_line": 382,
+      "end_line": 525,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNo"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  bool EnableRelax = STI.hasFeature(RISCV::FeatureRelax);\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  MCInstrDesc const &Desc = MCII.get(MI.getOpcode());\n  unsigned MIFrm = RISCVII::getFormat(Desc.TSFlags);\n\n  // If the destination is an immediate, there is nothing to do.\n  if (MO.isImm())\n    return MO.getImm();\n\n  assert(MO.isExpr() &&\n         \"getImmOpValue expects only expressions or immediates\");\n  const MCExpr *Expr = MO.getExpr();\n  MCExpr::ExprKind Kind = Expr->getKind();\n  RISCV::Fixups FixupKind = RISCV::fixup_riscv_invalid;\n  bool RelaxCandidate = false;\n  if (Kind == MCExpr::Target) {\n    const RISCVMCExpr *RVExpr = cast<RISCVMCExpr>(Expr);\n\n    switch (RVExpr->getKind()) {\n    case RISCVMCExpr::VK_RISCV_None:\n    case RISCVMCExpr::VK_RISCV_Invalid:\n    case RISCVMCExpr::VK_RISCV_32_PCREL:\n      llvm_unreachable(\"Unhandled fixup kind!\");\n    case RISCVMCExpr::VK_RISCV_TPREL_ADD:\n      // tprel_add is only used to indicate that a relocation should be emitted\n      // for an add instruction used in TP-relative addressing. It should not be\n      // expanded as if representing an actual instruction operand and so to\n      // encounter it here is an error.\n      llvm_unreachable(\n          \"VK_RISCV_TPREL_ADD should not represent an instruction operand\");\n    case RISCVMCExpr::VK_RISCV_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_lo12_s;\n      else\n        llvm_unreachable(\"VK_RISCV_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_HI:\n      FixupKind = RISCV::fixup_riscv_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_PCREL_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_pcrel_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_pcrel_lo12_s;\n      else\n        llvm_unreachable(\n            \"VK_RISCV_PCREL_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_PCREL_HI:\n      FixupKind = RISCV::fixup_riscv_pcrel_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_GOT_HI:\n      FixupKind = RISCV::fixup_riscv_got_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TPREL_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_tprel_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_tprel_lo12_s;\n      else\n        llvm_unreachable(\n            \"VK_RISCV_TPREL_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TPREL_HI:\n      FixupKind = RISCV::fixup_riscv_tprel_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLS_GOT_HI:\n      FixupKind = RISCV::fixup_riscv_tls_got_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLS_GD_HI:\n      FixupKind = RISCV::fixup_riscv_tls_gd_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_CALL:\n      FixupKind = RISCV::fixup_riscv_call;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_CALL_PLT:\n      FixupKind = RISCV::fixup_riscv_call_plt;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_HI:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_LOAD_LO:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_load_lo12;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_ADD_LO:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_add_lo12;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_CALL:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_call;\n      break;\n    }\n  } else if ((Kind == MCExpr::SymbolRef &&\n                 cast<MCSymbolRefExpr>(Expr)->getKind() ==\n                     MCSymbolRefExpr::VK_None) ||\n             Kind == MCExpr::Binary) {\n    // FIXME: Sub kind binary exprs have chance of underflow.\n    if (MIFrm == RISCVII::InstFormatJ) {\n      FixupKind = RISCV::fixup_riscv_jal;\n    } else if (MIFrm == RISCVII::InstFormatB) {\n      FixupKind = RISCV::fixup_riscv_branch;\n    } else if (MIFrm == RISCVII::InstFormatCJ) {\n      FixupKind = RISCV::fixup_riscv_rvc_jump;\n    } else if (MIFrm == RISCVII::InstFormatCB) {\n      FixupKind = RISCV::fixup_riscv_rvc_branch;\n    } else if (MIFrm == RISCVII::InstFormatI) {\n      FixupKind = RISCV::fixup_riscv_12_i;\n    }\n  }\n\n  assert(FixupKind != RISCV::fixup_riscv_invalid && \"Unhandled expression!\");\n\n  Fixups.push_back(\n      MCFixup::create(0, Expr, MCFixupKind(FixupKind), MI.getLoc()));\n  ++MCNumFixups;\n\n  // Ensure an R_RISCV_RELAX relocation will be emitted if linker relaxation is\n  // enabled and the current fixup will result in a relocation that may be\n  // relaxed.\n  if (EnableRelax && RelaxCandidate) {\n    const MCConstantExpr *Dummy = MCConstantExpr::create(0, Ctx);\n    Fixups.push_back(\n    MCFixup::create(0, Dummy, MCFixupKind(RISCV::fixup_riscv_relax),\n                    MI.getLoc()));\n    ++MCNumFixups;\n  }\n\n  return 0;\n",
+      "raw_code": "\n\nunsigned RISCVMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,\n                                           SmallVectorImpl<MCFixup> &Fixups,\n                                           const MCSubtargetInfo &STI) const {\n  bool EnableRelax = STI.hasFeature(RISCV::FeatureRelax);\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  MCInstrDesc const &Desc = MCII.get(MI.getOpcode());\n  unsigned MIFrm = RISCVII::getFormat(Desc.TSFlags);\n\n  // If the destination is an immediate, there is nothing to do.\n  if (MO.isImm())\n    return MO.getImm();\n\n  assert(MO.isExpr() &&\n         \"getImmOpValue expects only expressions or immediates\");\n  const MCExpr *Expr = MO.getExpr();\n  MCExpr::ExprKind Kind = Expr->getKind();\n  RISCV::Fixups FixupKind = RISCV::fixup_riscv_invalid;\n  bool RelaxCandidate = false;\n  if (Kind == MCExpr::Target) {\n    const RISCVMCExpr *RVExpr = cast<RISCVMCExpr>(Expr);\n\n    switch (RVExpr->getKind()) {\n    case RISCVMCExpr::VK_RISCV_None:\n    case RISCVMCExpr::VK_RISCV_Invalid:\n    case RISCVMCExpr::VK_RISCV_32_PCREL:\n      llvm_unreachable(\"Unhandled fixup kind!\");\n    case RISCVMCExpr::VK_RISCV_TPREL_ADD:\n      // tprel_add is only used to indicate that a relocation should be emitted\n      // for an add instruction used in TP-relative addressing. It should not be\n      // expanded as if representing an actual instruction operand and so to\n      // encounter it here is an error.\n      llvm_unreachable(\n          \"VK_RISCV_TPREL_ADD should not represent an instruction operand\");\n    case RISCVMCExpr::VK_RISCV_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_lo12_s;\n      else\n        llvm_unreachable(\"VK_RISCV_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_HI:\n      FixupKind = RISCV::fixup_riscv_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_PCREL_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_pcrel_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_pcrel_lo12_s;\n      else\n        llvm_unreachable(\n            \"VK_RISCV_PCREL_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_PCREL_HI:\n      FixupKind = RISCV::fixup_riscv_pcrel_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_GOT_HI:\n      FixupKind = RISCV::fixup_riscv_got_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TPREL_LO:\n      if (MIFrm == RISCVII::InstFormatI)\n        FixupKind = RISCV::fixup_riscv_tprel_lo12_i;\n      else if (MIFrm == RISCVII::InstFormatS)\n        FixupKind = RISCV::fixup_riscv_tprel_lo12_s;\n      else\n        llvm_unreachable(\n            \"VK_RISCV_TPREL_LO used with unexpected instruction format\");\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TPREL_HI:\n      FixupKind = RISCV::fixup_riscv_tprel_hi20;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLS_GOT_HI:\n      FixupKind = RISCV::fixup_riscv_tls_got_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLS_GD_HI:\n      FixupKind = RISCV::fixup_riscv_tls_gd_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_CALL:\n      FixupKind = RISCV::fixup_riscv_call;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_CALL_PLT:\n      FixupKind = RISCV::fixup_riscv_call_plt;\n      RelaxCandidate = true;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_HI:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_hi20;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_LOAD_LO:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_load_lo12;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_ADD_LO:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_add_lo12;\n      break;\n    case RISCVMCExpr::VK_RISCV_TLSDESC_CALL:\n      FixupKind = RISCV::fixup_riscv_tlsdesc_call;\n      break;\n    }\n  } else if ((Kind == MCExpr::SymbolRef &&\n                 cast<MCSymbolRefExpr>(Expr)->getKind() ==\n                     MCSymbolRefExpr::VK_None) ||\n             Kind == MCExpr::Binary) {\n    // FIXME: Sub kind binary exprs have chance of underflow.\n    if (MIFrm == RISCVII::InstFormatJ) {\n      FixupKind = RISCV::fixup_riscv_jal;\n    } else if (MIFrm == RISCVII::InstFormatB) {\n      FixupKind = RISCV::fixup_riscv_branch;\n    } else if (MIFrm == RISCVII::InstFormatCJ) {\n      FixupKind = RISCV::fixup_riscv_rvc_jump;\n    } else if (MIFrm == RISCVII::InstFormatCB) {\n      FixupKind = RISCV::fixup_riscv_rvc_branch;\n    } else if (MIFrm == RISCVII::InstFormatI) {\n      FixupKind = RISCV::fixup_riscv_12_i;\n    }\n  }\n\n  assert(FixupKind != RISCV::fixup_riscv_invalid && \"Unhandled expression!\");\n\n  Fixups.push_back(\n      MCFixup::create(0, Expr, MCFixupKind(FixupKind), MI.getLoc()));\n  ++MCNumFixups;\n\n  // Ensure an R_RISCV_RELAX relocation will be emitted if linker relaxation is\n  // enabled and the current fixup will result in a relocation that may be\n  // relaxed.\n  if (EnableRelax && RelaxCandidate) {\n    const MCConstantExpr *Dummy = MCConstantExpr::create(0, Ctx);\n    Fixups.push_back(\n    MCFixup::create(0, Dummy, MCFixupKind(RISCV::fixup_riscv_relax),\n                    MI.getLoc()));\n    ++MCNumFixups;\n  }\n\n  return 0;\n}",
+      "line_count": 144,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "push_back",
+        "getOpcode",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "getLoc",
+        "llvm_unreachable",
+        "create",
+        "get",
+        "isExpr",
+        "getKind",
+        "getImm",
+        "hasFeature",
+        "getFormat"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:29.691764",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "c250cf4ab797339d": {
+      "id": "c250cf4ab797339d",
+      "name": "supportKCFIBundles",
+      "full_name": "supportKCFIBundles",
+      "backend": "AArch64",
+      "module": "ISelLowering",
+      "file_path": "AArch64/AArch64ISelLowering.h",
+      "start_line": 907,
+      "end_line": 909,
+      "return_type": "bool",
+      "parameters": [],
+      "qualifiers": [
+        "const",
+        "override"
+      ],
+      "body": " return true; ",
+      "raw_code": "\n\n  bool supportKCFIBundles() const override { return true; }",
+      "line_count": 3,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:40.116084",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "814de3f8903fb36f": {
+      "id": "814de3f8903fb36f",
+      "name": "IsLittleEndian",
+      "full_name": "IsLittleEndian",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 58,
+      "end_line": 59,
+      "return_type": ",",
+      "parameters": [
+        {
+          "type": "IsLittle",
+          "name": ""
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  ",
+      "raw_code": ", IsLittleEndian(IsLittle) {\n  }",
+      "line_count": 2,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089271",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "61cd0f12278d3247": {
+      "id": "61cd0f12278d3247",
+      "name": "isThumb",
+      "full_name": "isThumb",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 62,
+      "end_line": 66,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    return STI.hasFeature(ARM::ModeThumb);\n  ",
+      "raw_code": "\n\n  bool isThumb(const MCSubtargetInfo &STI) const {\n    return STI.hasFeature(ARM::ModeThumb);\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "hasFeature"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089294",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "dda873ad1518c31b": {
+      "id": "dda873ad1518c31b",
+      "name": "isThumb2",
+      "full_name": "isThumb2",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 66,
+      "end_line": 70,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    return isThumb(STI) && STI.hasFeature(ARM::FeatureThumb2);\n  ",
+      "raw_code": "\n\n  bool isThumb2(const MCSubtargetInfo &STI) const {\n    return isThumb(STI) && STI.hasFeature(ARM::FeatureThumb2);\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "hasFeature",
+        "isThumb"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089300",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "0cb067d1f270d894": {
+      "id": "0cb067d1f270d894",
+      "name": "isTargetMachO",
+      "full_name": "isTargetMachO",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 70,
+      "end_line": 75,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    const Triple &TT = STI.getTargetTriple();\n    return TT.isOSBinFormatMachO();\n  ",
+      "raw_code": "\n\n  bool isTargetMachO(const MCSubtargetInfo &STI) const {\n    const Triple &TT = STI.getTargetTriple();\n    return TT.isOSBinFormatMachO();\n  }",
+      "line_count": 6,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getTargetTriple",
+        "isOSBinFormatMachO"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089306",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "bfe4d6aed574a8c6": {
+      "id": "bfe4d6aed574a8c6",
+      "name": "getLdStmModeOpValue",
+      "full_name": "getLdStmModeOpValue",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 232,
+      "end_line": 244,
+      "return_type": "uint32_t",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpIdx"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    ARM_AM::AMSubMode Mode = (ARM_AM::AMSubMode)MI.getOperand(OpIdx).getImm();\n    switch (Mode) {\n    default: llvm_unreachable(\"Unknown addressing sub-mode!\");\n    case ARM_AM::da: return 0;\n    case ARM_AM::ia: return 1;\n    case ARM_AM::db: return 2;\n    case ARM_AM::ib: return 3;\n    }\n  ",
+      "raw_code": "\n  uint32_t getLdStmModeOpValue(const MCInst &MI, unsigned OpIdx,\n                               SmallVectorImpl<MCFixup> &Fixups,\n                               const MCSubtargetInfo &STI) const {\n    ARM_AM::AMSubMode Mode = (ARM_AM::AMSubMode)MI.getOperand(OpIdx).getImm();\n    switch (Mode) {\n    default: llvm_unreachable(\"Unknown addressing sub-mode!\");\n    case ARM_AM::da: return 0;\n    case ARM_AM::ia: return 1;\n    case ARM_AM::db: return 2;\n    case ARM_AM::ib: return 3;\n    }\n  }",
+      "line_count": 13,
+      "has_switch": true,
+      "switch_patterns": [
+        {
+          "switch_variable": "Mode",
+          "cases": [
+            [
+              "ARM_AM::da",
+              "0"
+            ],
+            [
+              "ARM_AM::ia",
+              "1"
+            ],
+            [
+              "ARM_AM::db",
+              "2"
+            ],
+            [
+              "ARM_AM::ib",
+              "3"
+            ]
+          ],
+          "default_value": null,
+          "has_ternary_ispcrel": false,
+          "num_cases": 4
+        }
+      ],
+      "called_functions": [
+        "getOperand",
+        "getImm",
+        "llvm_unreachable"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089312",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "7f6dc0302abf7adb": {
+      "id": "7f6dc0302abf7adb",
+      "name": "getShiftOp",
+      "full_name": "getShiftOp",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 247,
+      "end_line": 259,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "ARM_AM::ShiftOpc",
+          "name": "ShOpc"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    switch (ShOpc) {\n    case ARM_AM::no_shift:\n    case ARM_AM::lsl: return 0;\n    case ARM_AM::lsr: return 1;\n    case ARM_AM::asr: return 2;\n    case ARM_AM::ror:\n    case ARM_AM::rrx: return 3;\n    default:\n      llvm_unreachable(\"Invalid ShiftOpc!\");\n    }\n  ",
+      "raw_code": "\n  unsigned getShiftOp(ARM_AM::ShiftOpc ShOpc) const {\n    switch (ShOpc) {\n    case ARM_AM::no_shift:\n    case ARM_AM::lsl: return 0;\n    case ARM_AM::lsr: return 1;\n    case ARM_AM::asr: return 2;\n    case ARM_AM::ror:\n    case ARM_AM::rrx: return 3;\n    default:\n      llvm_unreachable(\"Invalid ShiftOpc!\");\n    }\n  }",
+      "line_count": 13,
+      "has_switch": true,
+      "switch_patterns": [
+        {
+          "switch_variable": "ShOpc",
+          "cases": [
+            [
+              "ARM_AM::lsl",
+              "0"
+            ],
+            [
+              "ARM_AM::lsr",
+              "1"
+            ],
+            [
+              "ARM_AM::asr",
+              "2"
+            ],
+            [
+              "ARM_AM::rrx",
+              "3"
+            ]
+          ],
+          "default_value": null,
+          "has_ternary_ispcrel": false,
+          "num_cases": 4
+        }
+      ],
+      "called_functions": [
+        "llvm_unreachable"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089319",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "16caff25f38bf7f9": {
+      "id": "16caff25f38bf7f9",
+      "name": "getCCOutOpValue",
+      "full_name": "getCCOutOpValue",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 307,
+      "end_line": 314,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "Op"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    // The operand is either reg0 or CPSR. The 's' bit is encoded as '0' or\n    // '1' respectively.\n    return MI.getOperand(Op).getReg() == ARM::CPSR;\n  ",
+      "raw_code": "\n  unsigned getCCOutOpValue(const MCInst &MI, unsigned Op,\n                           SmallVectorImpl<MCFixup> &Fixups,\n                           const MCSubtargetInfo &STI) const {\n    // The operand is either reg0 or CPSR. The 's' bit is encoded as '0' or\n    // '1' respectively.\n    return MI.getOperand(Op).getReg() == ARM::CPSR;\n  }",
+      "line_count": 8,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getOperand",
+        "getReg"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089324",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "e6e72b6d7219a809": {
+      "id": "e6e72b6d7219a809",
+      "name": "getModImmOpValue",
+      "full_name": "getModImmOpValue",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 314,
+      "end_line": 332,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "Op"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "ST"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    const MCOperand &MO = MI.getOperand(Op);\n\n    // Support for fixups (MCFixup)\n    if (MO.isExpr()) {\n      const MCExpr *Expr = MO.getExpr();\n      // Fixups resolve to plain values that need to be encoded.\n      MCFixupKind Kind = MCFixupKind(ARM::fixup_arm_mod_imm);\n      Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n      return 0;\n    }\n\n    // Immediate is already in its encoded format\n    return MO.getImm();\n  ",
+      "raw_code": "\n\n  unsigned getModImmOpValue(const MCInst &MI, unsigned Op,\n                            SmallVectorImpl<MCFixup> &Fixups,\n                            const MCSubtargetInfo &ST) const {\n    const MCOperand &MO = MI.getOperand(Op);\n\n    // Support for fixups (MCFixup)\n    if (MO.isExpr()) {\n      const MCExpr *Expr = MO.getExpr();\n      // Fixups resolve to plain values that need to be encoded.\n      MCFixupKind Kind = MCFixupKind(ARM::fixup_arm_mod_imm);\n      Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n      return 0;\n    }\n\n    // Immediate is already in its encoded format\n    return MO.getImm();\n  }",
+      "line_count": 19,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "push_back",
+        "MCFixupKind",
+        "getExpr",
+        "getOperand",
+        "getLoc",
+        "create",
+        "getImm",
+        "isExpr"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089330",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "37341053c9ab1f26": {
+      "id": "37341053c9ab1f26",
+      "name": "getT2SOImmOpValue",
+      "full_name": "getT2SOImmOpValue",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 334,
+      "end_line": 352,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "Op"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    const MCOperand &MO = MI.getOperand(Op);\n\n    // Support for fixups (MCFixup)\n    if (MO.isExpr()) {\n      const MCExpr *Expr = MO.getExpr();\n      // Fixups resolve to plain values that need to be encoded.\n      MCFixupKind Kind = MCFixupKind(ARM::fixup_t2_so_imm);\n      Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n      return 0;\n    }\n    unsigned SoImm = MO.getImm();\n    unsigned Encoded =  ARM_AM::getT2SOImmVal(SoImm);\n    assert(Encoded != ~0U && \"Not a Thumb2 so_imm value?\");\n    return Encoded;\n  ",
+      "raw_code": "\n  unsigned getT2SOImmOpValue(const MCInst &MI, unsigned Op,\n                           SmallVectorImpl<MCFixup> &Fixups,\n                           const MCSubtargetInfo &STI) const {\n    const MCOperand &MO = MI.getOperand(Op);\n\n    // Support for fixups (MCFixup)\n    if (MO.isExpr()) {\n      const MCExpr *Expr = MO.getExpr();\n      // Fixups resolve to plain values that need to be encoded.\n      MCFixupKind Kind = MCFixupKind(ARM::fixup_t2_so_imm);\n      Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n      return 0;\n    }\n    unsigned SoImm = MO.getImm();\n    unsigned Encoded =  ARM_AM::getT2SOImmVal(SoImm);\n    assert(Encoded != ~0U && \"Not a Thumb2 so_imm value?\");\n    return Encoded;\n  }",
+      "line_count": 19,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "push_back",
+        "MCFixupKind",
+        "getExpr",
+        "getOperand",
+        "getLoc",
+        "create",
+        "getImm",
+        "getT2SOImmVal",
+        "isExpr"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089335",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "2748faff52bc3603": {
+      "id": "2748faff52bc3603",
+      "name": "getNEONVcvtImm32OpValue",
+      "full_name": "getNEONVcvtImm32OpValue",
+      "backend": "ARM",
+      "module": "MCCodeEmitter",
+      "file_path": "ARM/MCTargetDesc/ARMMCCodeEmitter.cpp",
+      "start_line": 374,
+      "end_line": 380,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "Op"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    return 64 - MI.getOperand(Op).getImm();\n  ",
+      "raw_code": "\n\n  unsigned getNEONVcvtImm32OpValue(const MCInst &MI, unsigned Op,\n                                   SmallVectorImpl<MCFixup> &Fixups,\n                                   const MCSubtargetInfo &STI) const {\n    return 64 - MI.getOperand(Op).getImm();\n  }",
+      "line_count": 7,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getOperand",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:34.089340",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "28a32a5adeedb5b9": {
+      "id": "28a32a5adeedb5b9",
+      "name": "MCInstPrinter",
+      "full_name": "MCInstPrinter",
+      "backend": "AArch64",
+      "module": "AsmPrinter",
+      "file_path": "AArch64/MCTargetDesc/AArch64InstPrinter.cpp",
+      "start_line": 46,
+      "end_line": 47,
+      "return_type": ":",
+      "parameters": [
+        {
+          "type": "MAI",
+          "name": ""
+        },
+        {
+          "type": "MII",
+          "name": ""
+        },
+        {
+          "type": "MRI",
+          "name": ""
+        }
+      ],
+      "qualifiers": [],
+      "body": "",
+      "raw_code": "\n    : MCInstPrinter(MAI, MII, MRI) {}",
+      "line_count": 2,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.980651",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "d9a2f31c877b97be": {
+      "id": "d9a2f31c877b97be",
+      "name": "emitNonLazySymbolPointer",
+      "full_name": "emitNonLazySymbolPointer",
+      "backend": "X86",
+      "module": "AsmPrinter",
+      "file_path": "X86/X86AsmPrinter.cpp",
+      "start_line": 931,
+      "end_line": 954,
+      "return_type": "static void",
+      "parameters": [
+        {
+          "type": "MCStreamer&",
+          "name": "OutStreamer"
+        },
+        {
+          "type": "MCSymbol*",
+          "name": "StubLabel"
+        },
+        {
+          "type": "MachineModuleInfoImpl::StubValueTy&",
+          "name": "MCSym"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  // L_foo$stub:\n  OutStreamer.emitLabel(StubLabel);\n  //   .indirect_symbol _foo\n  OutStreamer.emitSymbolAttribute(MCSym.getPointer(), MCSA_IndirectSymbol);\n\n  if (MCSym.getInt())\n    // External to current translation unit.\n    OutStreamer.emitIntValue(0, 4/*size*/);\n  else\n    // Internal to current translation unit.\n    //\n    // When we place the LSDA into the TEXT section, the type info\n    // pointers need to be indirect and pc-rel. We accomplish this by\n    // using NLPs; however, sometimes the types are local to the file.\n    // We need to fill in the value for the NLP in those cases.\n    OutStreamer.emitValue(\n        MCSymbolRefExpr::create(MCSym.getPointer(), OutStreamer.getContext()),\n        4 /*size*/);\n",
+      "raw_code": "\n\nstatic void\nemitNonLazySymbolPointer(MCStreamer &OutStreamer, MCSymbol *StubLabel,\n                         MachineModuleInfoImpl::StubValueTy &MCSym) {\n  // L_foo$stub:\n  OutStreamer.emitLabel(StubLabel);\n  //   .indirect_symbol _foo\n  OutStreamer.emitSymbolAttribute(MCSym.getPointer(), MCSA_IndirectSymbol);\n\n  if (MCSym.getInt())\n    // External to current translation unit.\n    OutStreamer.emitIntValue(0, 4/*size*/);\n  else\n    // Internal to current translation unit.\n    //\n    // When we place the LSDA into the TEXT section, the type info\n    // pointers need to be indirect and pc-rel. We accomplish this by\n    // using NLPs; however, sometimes the types are local to the file.\n    // We need to fill in the value for the NLP in those cases.\n    OutStreamer.emitValue(\n        MCSymbolRefExpr::create(MCSym.getPointer(), OutStreamer.getContext()),\n        4 /*size*/);\n}",
+      "line_count": 24,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getPointer",
+        "getInt",
+        "emitSymbolAttribute",
+        "getContext",
+        "create",
+        "emitValue",
+        "emitLabel",
+        "emitIntValue"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.317312",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "b5d4cb5f001f8bac": {
+      "id": "b5d4cb5f001f8bac",
+      "name": "convertSetCCLogicToBitwiseLogic",
+      "full_name": "convertSetCCLogicToBitwiseLogic",
+      "backend": "X86",
+      "module": "ISelLowering",
+      "file_path": "X86/X86ISelLowering.h",
+      "start_line": 1181,
+      "end_line": 1185,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "EVT",
+          "name": "VT"
+        }
+      ],
+      "qualifiers": [
+        "const",
+        "override"
+      ],
+      "body": "\n      return VT.isScalarInteger();\n    ",
+      "raw_code": "\n\n    bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {\n      return VT.isScalarInteger();\n    }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "isScalarInteger"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:46.567234",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "38cdc6f88201e184": {
+      "id": "38cdc6f88201e184",
+      "name": "supportSplitCSR",
+      "full_name": "supportSplitCSR",
+      "backend": "X86",
+      "module": "ISelLowering",
+      "file_path": "X86/X86ISelLowering.h",
+      "start_line": 1706,
+      "end_line": 1711,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "MachineFunction*",
+          "name": "MF"
+        }
+      ],
+      "qualifiers": [
+        "const",
+        "override"
+      ],
+      "body": "\n      return MF->getFunction().getCallingConv() == CallingConv::CXX_FAST_TLS &&\n          MF->getFunction().hasFnAttribute(Attribute::NoUnwind);\n    ",
+      "raw_code": "\n\n    bool supportSplitCSR(MachineFunction *MF) const override {\n      return MF->getFunction().getCallingConv() == CallingConv::CXX_FAST_TLS &&\n          MF->getFunction().hasFnAttribute(Attribute::NoUnwind);\n    }",
+      "line_count": 6,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "hasFnAttribute",
+        "getFunction",
+        "getCallingConv"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:46.567305",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "ffae823b103a1a3d": {
+      "id": "ffae823b103a1a3d",
+      "name": "isVShiftLImm",
+      "full_name": "isVShiftLImm",
+      "backend": "AArch64",
+      "module": "ISelLowering",
+      "file_path": "AArch64/AArch64ISelLowering.cpp",
+      "start_line": 13821,
+      "end_line": 13828,
+      "return_type": "static bool",
+      "parameters": [
+        {
+          "type": "SDValue",
+          "name": "Op"
+        },
+        {
+          "type": "EVT",
+          "name": "VT"
+        },
+        {
+          "type": "bool",
+          "name": "isLong"
+        },
+        {
+          "type": "int64_t&",
+          "name": "Cnt"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  assert(VT.isVector() && \"vector shift count is not a vector type\");\n  int64_t ElementBits = VT.getScalarSizeInBits();\n  if (!getVShiftImm(Op, ElementBits, Cnt))\n    return false;\n  return (Cnt >= 0 && (isLong ? Cnt - 1 : Cnt) < ElementBits);\n",
+      "raw_code": "\nstatic bool isVShiftLImm(SDValue Op, EVT VT, bool isLong, int64_t &Cnt) {\n  assert(VT.isVector() && \"vector shift count is not a vector type\");\n  int64_t ElementBits = VT.getScalarSizeInBits();\n  if (!getVShiftImm(Op, ElementBits, Cnt))\n    return false;\n  return (Cnt >= 0 && (isLong ? Cnt - 1 : Cnt) < ElementBits);\n}",
+      "line_count": 8,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "isVector",
+        "assert",
+        "getVShiftImm",
+        "getScalarSizeInBits"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:42.548943",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "8f92255558f055b8": {
+      "id": "8f92255558f055b8",
+      "name": "getExtensionTo64Bits",
+      "full_name": "getExtensionTo64Bits",
+      "backend": "AArch64",
+      "module": "ISelLowering",
+      "file_path": "AArch64/AArch64ISelLowering.cpp",
+      "start_line": 4461,
+      "end_line": 4478,
+      "return_type": "static EVT",
+      "parameters": [
+        {
+          "type": "const EVT&",
+          "name": "OrigVT"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  if (OrigVT.getSizeInBits() >= 64)\n    return OrigVT;\n\n  assert(OrigVT.isSimple() && \"Expecting a simple value type\");\n\n  MVT::SimpleValueType OrigSimpleTy = OrigVT.getSimpleVT().SimpleTy;\n  switch (OrigSimpleTy) {\n  default: llvm_unreachable(\"Unexpected Vector Type\");\n  case MVT::v2i8:\n  case MVT::v2i16:\n     return MVT::v2i32;\n  case MVT::v4i8:\n    return  MVT::v4i16;\n  }\n",
+      "raw_code": "\n\nstatic EVT getExtensionTo64Bits(const EVT &OrigVT) {\n  if (OrigVT.getSizeInBits() >= 64)\n    return OrigVT;\n\n  assert(OrigVT.isSimple() && \"Expecting a simple value type\");\n\n  MVT::SimpleValueType OrigSimpleTy = OrigVT.getSimpleVT().SimpleTy;\n  switch (OrigSimpleTy) {\n  default: llvm_unreachable(\"Unexpected Vector Type\");\n  case MVT::v2i8:\n  case MVT::v2i16:\n     return MVT::v2i32;\n  case MVT::v4i8:\n    return  MVT::v4i16;\n  }\n}",
+      "line_count": 18,
+      "has_switch": true,
+      "switch_patterns": [
+        {
+          "switch_variable": "OrigSimpleTy",
+          "cases": [
+            [
+              "MVT::v2i16",
+              "MVT::v2i32"
+            ],
+            [
+              "MVT::v4i8",
+              "MVT::v4i16"
+            ]
+          ],
+          "default_value": null,
+          "has_ternary_ispcrel": false,
+          "num_cases": 2
+        }
+      ],
+      "called_functions": [
+        "assert",
+        "getSizeInBits",
+        "isSimple",
+        "llvm_unreachable",
+        "getSimpleVT"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:42.547719",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "315e6b4ab1b9a787": {
+      "id": "315e6b4ab1b9a787",
+      "name": "areExtractExts",
+      "full_name": "areExtractExts",
+      "backend": "AArch64",
+      "module": "ISelLowering",
+      "file_path": "AArch64/AArch64ISelLowering.cpp",
+      "start_line": 14924,
+      "end_line": 14938,
+      "return_type": "static bool",
+      "parameters": [
+        {
+          "type": "Value*",
+          "name": "Ext1"
+        },
+        {
+          "type": "Value*",
+          "name": "Ext2"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  auto areExtDoubled = [](Instruction *Ext) {\n    return Ext->getType()->getScalarSizeInBits() ==\n           2 * Ext->getOperand(0)->getType()->getScalarSizeInBits();\n  };\n\n  if (!match(Ext1, m_ZExtOrSExt(m_Value())) ||\n      !match(Ext2, m_ZExtOrSExt(m_Value())) ||\n      !areExtDoubled(cast<Instruction>(Ext1)) ||\n      !areExtDoubled(cast<Instruction>(Ext2)))\n    return false;\n\n  return true;\n",
+      "raw_code": "\nstatic bool areExtractExts(Value *Ext1, Value *Ext2) {\n  auto areExtDoubled = [](Instruction *Ext) {\n    return Ext->getType()->getScalarSizeInBits() ==\n           2 * Ext->getOperand(0)->getType()->getScalarSizeInBits();\n  };\n\n  if (!match(Ext1, m_ZExtOrSExt(m_Value())) ||\n      !match(Ext2, m_ZExtOrSExt(m_Value())) ||\n      !areExtDoubled(cast<Instruction>(Ext1)) ||\n      !areExtDoubled(cast<Instruction>(Ext2)))\n    return false;\n\n  return true;\n}",
+      "line_count": 15,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getType",
+        "areExtDoubled",
+        "m_ZExtOrSExt",
+        "m_Value",
+        "getOperand",
+        "match",
+        "getScalarSizeInBits"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:42.549131",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "584111bce22c46be": {
+      "id": "584111bce22c46be",
+      "name": "Ctx",
+      "full_name": "Ctx",
+      "backend": "AArch64",
+      "module": "MCCodeEmitter",
+      "file_path": "AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp",
+      "start_line": 48,
+      "end_line": 48,
+      "return_type": ":",
+      "parameters": [
+        {
+          "type": "ctx",
+          "name": ""
+        }
+      ],
+      "qualifiers": [],
+      "body": "",
+      "raw_code": " : Ctx(ctx) {}",
+      "line_count": 1,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.668706",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "b7044f5ef784f668": {
+      "id": "b7044f5ef784f668",
+      "name": "getMachineOpValue",
+      "full_name": "AArch64MCCodeEmitter::getMachineOpValue",
+      "backend": "AArch64",
+      "module": "MCCodeEmitter",
+      "file_path": "AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp",
+      "start_line": 221,
+      "end_line": 231,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "const MCOperand&",
+          "name": "MO"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  if (MO.isReg())\n    return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());\n\n  assert(MO.isImm() && \"did not expect relocated expression\");\n  return static_cast<unsigned>(MO.getImm());\n",
+      "raw_code": "\nunsigned\nAArch64MCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,\n                                        SmallVectorImpl<MCFixup> &Fixups,\n                                        const MCSubtargetInfo &STI) const {\n  if (MO.isReg())\n    return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());\n\n  assert(MO.isImm() && \"did not expect relocated expression\");\n  return static_cast<unsigned>(MO.getImm());\n}",
+      "line_count": 11,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "isReg",
+        "getReg",
+        "getEncodingValue",
+        "isImm",
+        "getRegisterInfo",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.668739",
+      "is_interface": true,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "e340adb2fd05ec2a": {
+      "id": "e340adb2fd05ec2a",
+      "name": "getLdStUImm12OpValue",
+      "full_name": "AArch64MCCodeEmitter::getLdStUImm12OpValue",
+      "backend": "AArch64",
+      "module": "MCCodeEmitter",
+      "file_path": "AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp",
+      "start_line": 231,
+      "end_line": 250,
+      "return_type": "template<unsigned FixupKind> uint32_t",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpIdx"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpIdx);\n  uint32_t ImmVal = 0;\n\n  if (MO.isImm())\n    ImmVal = static_cast<uint32_t>(MO.getImm());\n  else {\n    assert(MO.isExpr() && \"unable to encode load/store imm operand\");\n    MCFixupKind Kind = MCFixupKind(FixupKind);\n    Fixups.push_back(MCFixup::create(0, MO.getExpr(), Kind, MI.getLoc()));\n    ++MCNumFixups;\n  }\n\n  return ImmVal;\n",
+      "raw_code": "\n\ntemplate<unsigned FixupKind> uint32_t\nAArch64MCCodeEmitter::getLdStUImm12OpValue(const MCInst &MI, unsigned OpIdx,\n                                           SmallVectorImpl<MCFixup> &Fixups,\n                                           const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpIdx);\n  uint32_t ImmVal = 0;\n\n  if (MO.isImm())\n    ImmVal = static_cast<uint32_t>(MO.getImm());\n  else {\n    assert(MO.isExpr() && \"unable to encode load/store imm operand\");\n    MCFixupKind Kind = MCFixupKind(FixupKind);\n    Fixups.push_back(MCFixup::create(0, MO.getExpr(), Kind, MI.getLoc()));\n    ++MCNumFixups;\n  }\n\n  return ImmVal;\n}",
+      "line_count": 20,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "push_back",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "getLoc",
+        "create",
+        "isExpr",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.668749",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "92851713af100f49": {
+      "id": "92851713af100f49",
+      "name": "getAdrLabelOpValue",
+      "full_name": "AArch64MCCodeEmitter::getAdrLabelOpValue",
+      "backend": "AArch64",
+      "module": "MCCodeEmitter",
+      "file_path": "AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp",
+      "start_line": 253,
+      "end_line": 275,
+      "return_type": "uint32_t",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpIdx"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpIdx);\n\n  // If the destination is an immediate, we have nothing to do.\n  if (MO.isImm())\n    return MO.getImm();\n  assert(MO.isExpr() && \"Unexpected target type!\");\n  const MCExpr *Expr = MO.getExpr();\n\n  MCFixupKind Kind = MI.getOpcode() == AArch64::ADR\n                         ? MCFixupKind(AArch64::fixup_aarch64_pcrel_adr_imm21)\n                         : MCFixupKind(AArch64::fixup_aarch64_pcrel_adrp_imm21);\n  Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n\n  MCNumFixups += 1;\n\n  // All of the information is in the fixup.\n  return 0;\n",
+      "raw_code": "\nuint32_t\nAArch64MCCodeEmitter::getAdrLabelOpValue(const MCInst &MI, unsigned OpIdx,\n                                         SmallVectorImpl<MCFixup> &Fixups,\n                                         const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpIdx);\n\n  // If the destination is an immediate, we have nothing to do.\n  if (MO.isImm())\n    return MO.getImm();\n  assert(MO.isExpr() && \"Unexpected target type!\");\n  const MCExpr *Expr = MO.getExpr();\n\n  MCFixupKind Kind = MI.getOpcode() == AArch64::ADR\n                         ? MCFixupKind(AArch64::fixup_aarch64_pcrel_adr_imm21)\n                         : MCFixupKind(AArch64::fixup_aarch64_pcrel_adrp_imm21);\n  Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n\n  MCNumFixups += 1;\n\n  // All of the information is in the fixup.\n  return 0;\n}",
+      "line_count": 23,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "push_back",
+        "getOpcode",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "getLoc",
+        "create",
+        "isExpr",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.668756",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "cf1a1749343e8279": {
+      "id": "cf1a1749343e8279",
+      "name": "getAddSubImmOpValue",
+      "full_name": "AArch64MCCodeEmitter::getAddSubImmOpValue",
+      "backend": "AArch64",
+      "module": "MCCodeEmitter",
+      "file_path": "AArch64/MCTargetDesc/AArch64MCCodeEmitter.cpp",
+      "start_line": 279,
+      "end_line": 313,
+      "return_type": "uint32_t",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpIdx"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  // Suboperands are [imm, shifter].\n  const MCOperand &MO = MI.getOperand(OpIdx);\n  const MCOperand &MO1 = MI.getOperand(OpIdx + 1);\n  assert(AArch64_AM::getShiftType(MO1.getImm()) == AArch64_AM::LSL &&\n         \"unexpected shift type for add/sub immediate\");\n  unsigned ShiftVal = AArch64_AM::getShiftValue(MO1.getImm());\n  assert((ShiftVal == 0 || ShiftVal == 12) &&\n         \"unexpected shift value for add/sub immediate\");\n  if (MO.isImm())\n    return MO.getImm() | (ShiftVal == 0 ? 0 : (1 << ShiftVal));\n  assert(MO.isExpr() && \"Unable to encode MCOperand!\");\n  const MCExpr *Expr = MO.getExpr();\n\n  // Encode the 12 bits of the fixup.\n  MCFixupKind Kind = MCFixupKind(AArch64::fixup_aarch64_add_imm12);\n  Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n\n  ++MCNumFixups;\n\n  // Set the shift bit of the add instruction for relocation types\n  // R_AARCH64_TLSLE_ADD_TPREL_HI12 and R_AARCH64_TLSLD_ADD_DTPREL_HI12.\n  if (const AArch64MCExpr *A64E = dyn_cast<AArch64MCExpr>(Expr)) {\n    AArch64MCExpr::VariantKind RefKind = A64E->getKind();\n    if (RefKind == AArch64MCExpr::VK_TPREL_HI12 ||\n        RefKind == AArch64MCExpr::VK_DTPREL_HI12 ||\n        RefKind == AArch64MCExpr::VK_SECREL_HI12)\n      ShiftVal = 12;\n  }\n  return ShiftVal == 0 ? 0 : (1 << ShiftVal);\n",
+      "raw_code": "\nuint32_t\nAArch64MCCodeEmitter::getAddSubImmOpValue(const MCInst &MI, unsigned OpIdx,\n                                          SmallVectorImpl<MCFixup> &Fixups,\n                                          const MCSubtargetInfo &STI) const {\n  // Suboperands are [imm, shifter].\n  const MCOperand &MO = MI.getOperand(OpIdx);\n  const MCOperand &MO1 = MI.getOperand(OpIdx + 1);\n  assert(AArch64_AM::getShiftType(MO1.getImm()) == AArch64_AM::LSL &&\n         \"unexpected shift type for add/sub immediate\");\n  unsigned ShiftVal = AArch64_AM::getShiftValue(MO1.getImm());\n  assert((ShiftVal == 0 || ShiftVal == 12) &&\n         \"unexpected shift value for add/sub immediate\");\n  if (MO.isImm())\n    return MO.getImm() | (ShiftVal == 0 ? 0 : (1 << ShiftVal));\n  assert(MO.isExpr() && \"Unable to encode MCOperand!\");\n  const MCExpr *Expr = MO.getExpr();\n\n  // Encode the 12 bits of the fixup.\n  MCFixupKind Kind = MCFixupKind(AArch64::fixup_aarch64_add_imm12);\n  Fixups.push_back(MCFixup::create(0, Expr, Kind, MI.getLoc()));\n\n  ++MCNumFixups;\n\n  // Set the shift bit of the add instruction for relocation types\n  // R_AARCH64_TLSLE_ADD_TPREL_HI12 and R_AARCH64_TLSLD_ADD_DTPREL_HI12.\n  if (const AArch64MCExpr *A64E = dyn_cast<AArch64MCExpr>(Expr)) {\n    AArch64MCExpr::VariantKind RefKind = A64E->getKind();\n    if (RefKind == AArch64MCExpr::VK_TPREL_HI12 ||\n        RefKind == AArch64MCExpr::VK_DTPREL_HI12 ||\n        RefKind == AArch64MCExpr::VK_SECREL_HI12)\n      ShiftVal = 12;\n  }\n  return ShiftVal == 0 ? 0 : (1 << ShiftVal);\n}",
+      "line_count": 35,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "getShiftValue",
+        "push_back",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "getShiftType",
+        "create",
+        "getLoc",
+        "isExpr",
+        "getKind",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:38.668763",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "8270f1f347235a28": {
+      "id": "8270f1f347235a28",
+      "name": "shouldEmitWeakSwiftAsyncExtendedFramePointerFlags",
+      "full_name": "shouldEmitWeakSwiftAsyncExtendedFramePointerFlags",
+      "backend": "X86",
+      "module": "AsmPrinter",
+      "file_path": "X86/X86AsmPrinter.h",
+      "start_line": 161,
+      "end_line": 165,
+      "return_type": "bool",
+      "parameters": [],
+      "qualifiers": [
+        "const",
+        "override"
+      ],
+      "body": "\n    return ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags;\n  ",
+      "raw_code": "\n\n  bool shouldEmitWeakSwiftAsyncExtendedFramePointerFlags() const override {\n    return ShouldEmitWeakSwiftAsyncExtendedFramePointerFlags;\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.282732",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "938e5f39bbe6f59d": {
+      "id": "938e5f39bbe6f59d",
+      "name": "Subtarget",
+      "full_name": "Subtarget",
+      "backend": "Mips",
+      "module": "ISelDAGToDAG",
+      "file_path": "Mips/MipsISelDAGToDAG.h",
+      "start_line": 38,
+      "end_line": 38,
+      "return_type": ",",
+      "parameters": [
+        {
+          "type": "nullptr",
+          "name": ""
+        }
+      ],
+      "qualifiers": [],
+      "body": "",
+      "raw_code": ", Subtarget(nullptr) {}",
+      "line_count": 1,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.702662",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "bb5246ee1f570b55": {
+      "id": "bb5246ee1f570b55",
+      "name": "LowerLargeShift",
+      "full_name": "LowerLargeShift",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 58,
+      "end_line": 88,
+      "return_type": ", lower it to a D<shift>32 instruction\nstatic void",
+      "parameters": [
+        {
+          "type": "MCInst&",
+          "name": "Inst"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n  assert(Inst.getNumOperands() == 3 && \"Invalid no. of operands for shift!\");\n  assert(Inst.getOperand(2).isImm());\n\n  int64_t Shift = Inst.getOperand(2).getImm();\n  if (Shift <= 31)\n    return; // Do nothing\n  Shift -= 32;\n\n  // saminus32\n  Inst.getOperand(2).setImm(Shift);\n\n  switch (Inst.getOpcode()) {\n  default:\n    // Calling function is not synchronized\n    llvm_unreachable(\"Unexpected shift instruction\");\n  case Mips::DSLL:\n    Inst.setOpcode(Mips::DSLL32);\n    return;\n  case Mips::DSRL:\n    Inst.setOpcode(Mips::DSRL32);\n    return;\n  case Mips::DSRA:\n    Inst.setOpcode(Mips::DSRA32);\n    return;\n  case Mips::DROTR:\n    Inst.setOpcode(Mips::DROTR32);\n    return;\n  }\n",
+      "raw_code": ", lower it to a D<shift>32 instruction\nstatic void LowerLargeShift(MCInst& Inst) {\n  assert(Inst.getNumOperands() == 3 && \"Invalid no. of operands for shift!\");\n  assert(Inst.getOperand(2).isImm());\n\n  int64_t Shift = Inst.getOperand(2).getImm();\n  if (Shift <= 31)\n    return; // Do nothing\n  Shift -= 32;\n\n  // saminus32\n  Inst.getOperand(2).setImm(Shift);\n\n  switch (Inst.getOpcode()) {\n  default:\n    // Calling function is not synchronized\n    llvm_unreachable(\"Unexpected shift instruction\");\n  case Mips::DSLL:\n    Inst.setOpcode(Mips::DSLL32);\n    return;\n  case Mips::DSRL:\n    Inst.setOpcode(Mips::DSRL32);\n    return;\n  case Mips::DSRA:\n    Inst.setOpcode(Mips::DSRA32);\n    return;\n  case Mips::DROTR:\n    Inst.setOpcode(Mips::DROTR32);\n    return;\n  }\n}",
+      "line_count": 31,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "setImm",
+        "getOpcode",
+        "getOperand",
+        "isImm",
+        "setOpcode",
+        "llvm_unreachable",
+        "getImm",
+        "getNumOperands"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179387",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "4c170f3c2057c869": {
+      "id": "4c170f3c2057c869",
+      "name": "LowerCompactBranch",
+      "full_name": "MipsMCCodeEmitter::LowerCompactBranch",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 90,
+      "end_line": 117,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "MCInst&",
+          "name": "Inst"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  // Encoding may be illegal !(rs < rt), but this situation is\n  // easily fixed.\n  unsigned RegOp0 = Inst.getOperand(0).getReg();\n  unsigned RegOp1 = Inst.getOperand(1).getReg();\n\n  unsigned Reg0 =  Ctx.getRegisterInfo()->getEncodingValue(RegOp0);\n  unsigned Reg1 =  Ctx.getRegisterInfo()->getEncodingValue(RegOp1);\n\n  if (Inst.getOpcode() == Mips::BNEC || Inst.getOpcode() == Mips::BEQC ||\n      Inst.getOpcode() == Mips::BNEC64 || Inst.getOpcode() == Mips::BEQC64) {\n    assert(Reg0 != Reg1 && \"Instruction has bad operands ($rs == $rt)!\");\n    if (Reg0 < Reg1)\n      return;\n  } else if (Inst.getOpcode() == Mips::BNVC || Inst.getOpcode() == Mips::BOVC) {\n    if (Reg0 >= Reg1)\n      return;\n  } else if (Inst.getOpcode() == Mips::BNVC_MMR6 ||\n             Inst.getOpcode() == Mips::BOVC_MMR6) {\n    if (Reg1 >= Reg0)\n      return;\n  } else\n    llvm_unreachable(\"Cannot rewrite unknown branch!\");\n\n  Inst.getOperand(0).setReg(RegOp1);\n  Inst.getOperand(1).setReg(RegOp0);\n",
+      "raw_code": "\nvoid MipsMCCodeEmitter::LowerCompactBranch(MCInst& Inst) const {\n  // Encoding may be illegal !(rs < rt), but this situation is\n  // easily fixed.\n  unsigned RegOp0 = Inst.getOperand(0).getReg();\n  unsigned RegOp1 = Inst.getOperand(1).getReg();\n\n  unsigned Reg0 =  Ctx.getRegisterInfo()->getEncodingValue(RegOp0);\n  unsigned Reg1 =  Ctx.getRegisterInfo()->getEncodingValue(RegOp1);\n\n  if (Inst.getOpcode() == Mips::BNEC || Inst.getOpcode() == Mips::BEQC ||\n      Inst.getOpcode() == Mips::BNEC64 || Inst.getOpcode() == Mips::BEQC64) {\n    assert(Reg0 != Reg1 && \"Instruction has bad operands ($rs == $rt)!\");\n    if (Reg0 < Reg1)\n      return;\n  } else if (Inst.getOpcode() == Mips::BNVC || Inst.getOpcode() == Mips::BOVC) {\n    if (Reg0 >= Reg1)\n      return;\n  } else if (Inst.getOpcode() == Mips::BNVC_MMR6 ||\n             Inst.getOpcode() == Mips::BOVC_MMR6) {\n    if (Reg1 >= Reg0)\n      return;\n  } else\n    llvm_unreachable(\"Cannot rewrite unknown branch!\");\n\n  Inst.getOperand(0).setReg(RegOp1);\n  Inst.getOperand(1).setReg(RegOp0);\n}",
+      "line_count": 28,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert",
+        "operands",
+        "getOpcode",
+        "setReg",
+        "getOperand",
+        "getReg",
+        "getEncodingValue",
+        "getRegisterInfo",
+        "llvm_unreachable"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179410",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "468ce5fa5d540576": {
+      "id": "468ce5fa5d540576",
+      "name": "isMicroMips",
+      "full_name": "MipsMCCodeEmitter::isMicroMips",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 117,
+      "end_line": 121,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  return STI.hasFeature(Mips::FeatureMicroMips);\n",
+      "raw_code": "\n\nbool MipsMCCodeEmitter::isMicroMips(const MCSubtargetInfo &STI) const {\n  return STI.hasFeature(Mips::FeatureMicroMips);\n}",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "hasFeature"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179417",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "0a40a532e66e3147": {
+      "id": "0a40a532e66e3147",
+      "name": "isMips32r6",
+      "full_name": "MipsMCCodeEmitter::isMips32r6",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 121,
+      "end_line": 125,
+      "return_type": "bool",
+      "parameters": [
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  return STI.hasFeature(Mips::FeatureMips32r6);\n",
+      "raw_code": "\n\nbool MipsMCCodeEmitter::isMips32r6(const MCSubtargetInfo &STI) const {\n  return STI.hasFeature(Mips::FeatureMips32r6);\n}",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "hasFeature"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179423",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "43f0a6107fe5ad27": {
+      "id": "43f0a6107fe5ad27",
+      "name": "EmitByte",
+      "full_name": "MipsMCCodeEmitter::EmitByte",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 125,
+      "end_line": 129,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "unsigned char",
+          "name": "C"
+        },
+        {
+          "type": "raw_ostream&",
+          "name": "OS"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  OS << (char)C;\n",
+      "raw_code": "\n\nvoid MipsMCCodeEmitter::EmitByte(unsigned char C, raw_ostream &OS) const {\n  OS << (char)C;\n}",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179428",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "446bf6c9b4b25487": {
+      "id": "446bf6c9b4b25487",
+      "name": "encodeInstruction",
+      "full_name": "MipsMCCodeEmitter::encodeInstruction",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 132,
+      "end_line": 219,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  // Non-pseudo instructions that get changed for direct object\n  // only based on operand values.\n  // If this list of instructions get much longer we will move\n  // the check to a function call. Until then, this is more efficient.\n  MCInst TmpInst = MI;\n  switch (MI.getOpcode()) {\n  // If shift amount is >= 32 it the inst needs to be lowered further\n  case Mips::DSLL:\n  case Mips::DSRL:\n  case Mips::DSRA:\n  case Mips::DROTR:\n    LowerLargeShift(TmpInst);\n    break;\n  // Compact branches, enforce encoding restrictions.\n  case Mips::BEQC:\n  case Mips::BNEC:\n  case Mips::BEQC64:\n  case Mips::BNEC64:\n  case Mips::BOVC:\n  case Mips::BOVC_MMR6:\n  case Mips::BNVC:\n  case Mips::BNVC_MMR6:\n    LowerCompactBranch(TmpInst);\n  }\n\n  size_t N = Fixups.size();\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n\n  // Check for unimplemented opcodes.\n  // Unfortunately in MIPS both NOP and SLL will come in with Binary == 0\n  // so we have to special check for them.\n  const unsigned Opcode = TmpInst.getOpcode();\n  if ((Opcode != Mips::NOP) && (Opcode != Mips::SLL) &&\n      (Opcode != Mips::SLL_MM) && (Opcode != Mips::SLL_MMR6) && !Binary)\n    llvm_unreachable(\"unimplemented opcode in encodeInstruction()\");\n\n  int NewOpcode = -1;\n  if (isMicroMips(STI)) {\n    if (isMips32r6(STI)) {\n      NewOpcode = Mips::MipsR62MicroMipsR6(Opcode, Mips::Arch_micromipsr6);\n      if (NewOpcode == -1)\n        NewOpcode = Mips::Std2MicroMipsR6(Opcode, Mips::Arch_micromipsr6);\n    }\n    else\n      NewOpcode = Mips::Std2MicroMips(Opcode, Mips::Arch_micromips);\n\n    // Check whether it is Dsp instruction.\n    if (NewOpcode == -1)\n      NewOpcode = Mips::Dsp2MicroMips(Opcode, Mips::Arch_mmdsp);\n\n    if (NewOpcode != -1) {\n      if (Fixups.size() > N)\n        Fixups.pop_back();\n\n      TmpInst.setOpcode (NewOpcode);\n      Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    }\n\n    if (((MI.getOpcode() == Mips::MOVEP_MM) ||\n         (MI.getOpcode() == Mips::MOVEP_MMR6))) {\n      unsigned RegPair = getMovePRegPairOpValue(MI, 0, Fixups, STI);\n      Binary = (Binary & 0xFFFFFC7F) | (RegPair << 7);\n    }\n  }\n\n  const MCInstrDesc &Desc = MCII.get(TmpInst.getOpcode());\n\n  // Get byte count of instruction\n  unsigned Size = Desc.getSize();\n  if (!Size)\n    llvm_unreachable(\"Desc.getSize() returns 0\");\n\n  auto Endian =\n      IsLittleEndian ? llvm::endianness::little : llvm::endianness::big;\n  if (Size == 2) {\n    support::endian::write<uint16_t>(CB, Binary, Endian);\n  } else if (IsLittleEndian && isMicroMips(STI)) {\n    support::endian::write<uint16_t>(CB, Binary >> 16, Endian);\n    support::endian::write<uint16_t>(CB, Binary & 0xffff, Endian);\n  } else {\n    support::endian::write<uint32_t>(CB, Binary, Endian);\n  }\n",
+      "raw_code": "\nvoid MipsMCCodeEmitter::encodeInstruction(const MCInst &MI,\n                                          SmallVectorImpl<char> &CB,\n                                          SmallVectorImpl<MCFixup> &Fixups,\n                                          const MCSubtargetInfo &STI) const {\n  // Non-pseudo instructions that get changed for direct object\n  // only based on operand values.\n  // If this list of instructions get much longer we will move\n  // the check to a function call. Until then, this is more efficient.\n  MCInst TmpInst = MI;\n  switch (MI.getOpcode()) {\n  // If shift amount is >= 32 it the inst needs to be lowered further\n  case Mips::DSLL:\n  case Mips::DSRL:\n  case Mips::DSRA:\n  case Mips::DROTR:\n    LowerLargeShift(TmpInst);\n    break;\n  // Compact branches, enforce encoding restrictions.\n  case Mips::BEQC:\n  case Mips::BNEC:\n  case Mips::BEQC64:\n  case Mips::BNEC64:\n  case Mips::BOVC:\n  case Mips::BOVC_MMR6:\n  case Mips::BNVC:\n  case Mips::BNVC_MMR6:\n    LowerCompactBranch(TmpInst);\n  }\n\n  size_t N = Fixups.size();\n  uint32_t Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n\n  // Check for unimplemented opcodes.\n  // Unfortunately in MIPS both NOP and SLL will come in with Binary == 0\n  // so we have to special check for them.\n  const unsigned Opcode = TmpInst.getOpcode();\n  if ((Opcode != Mips::NOP) && (Opcode != Mips::SLL) &&\n      (Opcode != Mips::SLL_MM) && (Opcode != Mips::SLL_MMR6) && !Binary)\n    llvm_unreachable(\"unimplemented opcode in encodeInstruction()\");\n\n  int NewOpcode = -1;\n  if (isMicroMips(STI)) {\n    if (isMips32r6(STI)) {\n      NewOpcode = Mips::MipsR62MicroMipsR6(Opcode, Mips::Arch_micromipsr6);\n      if (NewOpcode == -1)\n        NewOpcode = Mips::Std2MicroMipsR6(Opcode, Mips::Arch_micromipsr6);\n    }\n    else\n      NewOpcode = Mips::Std2MicroMips(Opcode, Mips::Arch_micromips);\n\n    // Check whether it is Dsp instruction.\n    if (NewOpcode == -1)\n      NewOpcode = Mips::Dsp2MicroMips(Opcode, Mips::Arch_mmdsp);\n\n    if (NewOpcode != -1) {\n      if (Fixups.size() > N)\n        Fixups.pop_back();\n\n      TmpInst.setOpcode (NewOpcode);\n      Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);\n    }\n\n    if (((MI.getOpcode() == Mips::MOVEP_MM) ||\n         (MI.getOpcode() == Mips::MOVEP_MMR6))) {\n      unsigned RegPair = getMovePRegPairOpValue(MI, 0, Fixups, STI);\n      Binary = (Binary & 0xFFFFFC7F) | (RegPair << 7);\n    }\n  }\n\n  const MCInstrDesc &Desc = MCII.get(TmpInst.getOpcode());\n\n  // Get byte count of instruction\n  unsigned Size = Desc.getSize();\n  if (!Size)\n    llvm_unreachable(\"Desc.getSize() returns 0\");\n\n  auto Endian =\n      IsLittleEndian ? llvm::endianness::little : llvm::endianness::big;\n  if (Size == 2) {\n    support::endian::write<uint16_t>(CB, Binary, Endian);\n  } else if (IsLittleEndian && isMicroMips(STI)) {\n    support::endian::write<uint16_t>(CB, Binary >> 16, Endian);\n    support::endian::write<uint16_t>(CB, Binary & 0xffff, Endian);\n  } else {\n    support::endian::write<uint32_t>(CB, Binary, Endian);\n  }\n}",
+      "line_count": 88,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "isMips32r6",
+        "getOpcode",
+        "getMovePRegPairOpValue",
+        "getBinaryCodeForInstr",
+        "MipsR62MicroMipsR6",
+        "setOpcode",
+        "Std2MicroMips",
+        "Dsp2MicroMips",
+        "pop_back",
+        "size",
+        "LowerLargeShift",
+        "isMicroMips",
+        "encodeInstruction",
+        "Std2MicroMipsR6",
+        "get",
+        "getSize",
+        "llvm_unreachable",
+        "LowerCompactBranch"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179435",
+      "is_interface": true,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "48dd11407d43d58c": {
+      "id": "48dd11407d43d58c",
+      "name": "getBranchTargetOpValue",
+      "full_name": "getBranchTargetOpValue",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 223,
+      "end_line": 241,
+      "return_type": "unsigned MipsMCCodeEmitter::",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNo"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 4.\n  if (MO.isImm()) return MO.getImm() >> 2;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValue expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-4, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n",
+      "raw_code": "\nunsigned MipsMCCodeEmitter::\ngetBranchTargetOpValue(const MCInst &MI, unsigned OpNo,\n                       SmallVectorImpl<MCFixup> &Fixups,\n                       const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 4.\n  if (MO.isImm()) return MO.getImm() >> 2;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValue expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-4, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n}",
+      "line_count": 19,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "createAdd",
+        "assert",
+        "push_back",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "create",
+        "isExpr",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179442",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "ec710ef3f30fd850": {
+      "id": "ec710ef3f30fd850",
+      "name": "getBranchTargetOpValue1SImm16",
+      "full_name": "getBranchTargetOpValue1SImm16",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 245,
+      "end_line": 263,
+      "return_type": "unsigned MipsMCCodeEmitter::",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNo"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 2.\n  if (MO.isImm()) return MO.getImm() >> 1;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValue expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-4, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n",
+      "raw_code": "\nunsigned MipsMCCodeEmitter::\ngetBranchTargetOpValue1SImm16(const MCInst &MI, unsigned OpNo,\n                              SmallVectorImpl<MCFixup> &Fixups,\n                              const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 2.\n  if (MO.isImm()) return MO.getImm() >> 1;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValue expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-4, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n}",
+      "line_count": 19,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "createAdd",
+        "assert",
+        "push_back",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "create",
+        "isExpr",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179448",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "d1b4930225331f31": {
+      "id": "d1b4930225331f31",
+      "name": "getBranchTargetOpValueMMR6",
+      "full_name": "getBranchTargetOpValueMMR6",
+      "backend": "Mips",
+      "module": "MCCodeEmitter",
+      "file_path": "Mips/MCTargetDesc/MipsMCCodeEmitter.cpp",
+      "start_line": 267,
+      "end_line": 286,
+      "return_type": "unsigned MipsMCCodeEmitter::",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNo"
+        },
+        {
+          "type": "SmallVectorImpl<MCFixup>&",
+          "name": "Fixups"
+        },
+        {
+          "type": "const MCSubtargetInfo&",
+          "name": "STI"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 2.\n  if (MO.isImm())\n    return MO.getImm() >> 1;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValueMMR6 expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-2, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n",
+      "raw_code": "\nunsigned MipsMCCodeEmitter::\ngetBranchTargetOpValueMMR6(const MCInst &MI, unsigned OpNo,\n                           SmallVectorImpl<MCFixup> &Fixups,\n                           const MCSubtargetInfo &STI) const {\n  const MCOperand &MO = MI.getOperand(OpNo);\n\n  // If the destination is an immediate, divide by 2.\n  if (MO.isImm())\n    return MO.getImm() >> 1;\n\n  assert(MO.isExpr() &&\n         \"getBranchTargetOpValueMMR6 expects only expressions or immediates\");\n\n  const MCExpr *FixupExpression = MCBinaryExpr::createAdd(\n      MO.getExpr(), MCConstantExpr::create(-2, Ctx), Ctx);\n  Fixups.push_back(MCFixup::create(0, FixupExpression,\n                                   MCFixupKind(Mips::fixup_Mips_PC16)));\n  return 0;\n}",
+      "line_count": 20,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "createAdd",
+        "assert",
+        "push_back",
+        "MCFixupKind",
+        "getOperand",
+        "getExpr",
+        "isImm",
+        "create",
+        "isExpr",
+        "getImm"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:43.179453",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "4d90ed13232e6b39": {
+      "id": "4d90ed13232e6b39",
+      "name": "emitByte",
+      "full_name": "emitByte",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 39,
+      "end_line": 41,
+      "return_type": "static void",
+      "parameters": [
+        {
+          "type": "uint8_t",
+          "name": "C"
+        },
+        {
+          "type": "SmallVectorImpl<char>&",
+          "name": "CB"
+        }
+      ],
+      "qualifiers": [],
+      "body": " CB.push_back(C); ",
+      "raw_code": "\n\nstatic void emitByte(uint8_t C, SmallVectorImpl<char> &CB) { CB.push_back(C); }",
+      "line_count": 3,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "push_back"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239884",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "757456a48c29e784": {
+      "id": "757456a48c29e784",
+      "name": "getRegEncoding",
+      "full_name": "getRegEncoding",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 163,
+      "end_line": 167,
+      "return_type": "unsigned",
+      "parameters": [
+        {
+          "type": "const MCInst&",
+          "name": "MI"
+        },
+        {
+          "type": "unsigned",
+          "name": "OpNum"
+        }
+      ],
+      "qualifiers": [
+        "const"
+      ],
+      "body": "\n    return MRI.getEncodingValue(MI.getOperand(OpNum).getReg());\n  ",
+      "raw_code": "\n\n  unsigned getRegEncoding(const MCInst &MI, unsigned OpNum) const {\n    return MRI.getEncodingValue(MI.getOperand(OpNum).getReg());\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "getOperand",
+        "getReg",
+        "getEncodingValue"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239916",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "5f5065f49773e665": {
+      "id": "5f5065f49773e665",
+      "name": "setR",
+      "full_name": "setR",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 167,
+      "end_line": 169,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "unsigned",
+          "name": "Encoding"
+        }
+      ],
+      "qualifiers": [],
+      "body": " R = Encoding >> 3 & 1; ",
+      "raw_code": "\n\n  void setR(unsigned Encoding) { R = Encoding >> 3 & 1; }",
+      "line_count": 3,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239923",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "412ee1a342647388": {
+      "id": "412ee1a342647388",
+      "name": "setR2",
+      "full_name": "setR2",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 169,
+      "end_line": 173,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "unsigned",
+          "name": "Encoding"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n    R2 = Encoding >> 4 & 1;\n    assert((!R2 || (Kind <= REX2 || Kind == EVEX)) && \"invalid setting\");\n  ",
+      "raw_code": "\n  void setR2(unsigned Encoding) {\n    R2 = Encoding >> 4 & 1;\n    assert((!R2 || (Kind <= REX2 || Kind == EVEX)) && \"invalid setting\");\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239929",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "d20d7e163864a6d4": {
+      "id": "d20d7e163864a6d4",
+      "name": "setX",
+      "full_name": "setX",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 173,
+      "end_line": 174,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "unsigned",
+          "name": "Encoding"
+        }
+      ],
+      "qualifiers": [],
+      "body": " X = Encoding >> 3 & 1; ",
+      "raw_code": "\n  void setX(unsigned Encoding) { X = Encoding >> 3 & 1; }",
+      "line_count": 2,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239935",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    },
+    "bedd2725d7a1a01c": {
+      "id": "bedd2725d7a1a01c",
+      "name": "setX2",
+      "full_name": "setX2",
+      "backend": "X86",
+      "module": "MCCodeEmitter",
+      "file_path": "X86/MCTargetDesc/X86MCCodeEmitter.cpp",
+      "start_line": 174,
+      "end_line": 178,
+      "return_type": "void",
+      "parameters": [
+        {
+          "type": "unsigned",
+          "name": "Encoding"
+        }
+      ],
+      "qualifiers": [],
+      "body": "\n    assert((Kind <= REX2 || Kind == EVEX) && \"invalid setting\");\n    X2 = Encoding >> 4 & 1;\n  ",
+      "raw_code": "\n  void setX2(unsigned Encoding) {\n    assert((Kind <= REX2 || Kind == EVEX) && \"invalid setting\");\n    X2 = Encoding >> 4 & 1;\n  }",
+      "line_count": 5,
+      "has_switch": false,
+      "switch_patterns": [],
+      "called_functions": [
+        "assert"
+      ],
+      "llvm_version": "18.1.0",
+      "extracted_at": "2026-01-22T11:16:45.239941",
+      "is_interface": false,
+      "is_target_specific": true,
+      "complexity_score": 0.0
+    }
+  },
+  "modules": {},
+  "backends": {
+    "RISCV": {
+      "name": "RISCV",
+      "target_triple": "riscv-unknown-linux-gnu",
+      "llvm_version": "18.1.0",
+      "modules": [
+        "MCCodeEmitter",
+        "ELFObjectWriter",
+        "AsmPrinter",
+        "ISelDAGToDAG",
+        "ISelLowering"
+      ],
+      "total_functions": 497,
+      "total_files": 8,
+      "total_lines": 0,
+      "interface_functions": 0,
+      "switch_functions": 0,
+      "extracted_at": "",
+      "extraction_time_sec": 0.0
+    },
+    "ARM": {
+      "name": "ARM",
+      "target_triple": "arm-unknown-linux-gnu",
+      "llvm_version": "18.1.0",
+      "modules": [
+        "MCCodeEmitter",
+        "ELFObjectWriter",
+        "AsmPrinter",
+        "ISelDAGToDAG",
+        "ISelLowering"
+      ],
+      "total_functions": 746,
+      "total_files": 8,
+      "total_lines": 0,
+      "interface_functions": 0,
+      "switch_functions": 0,
+      "extracted_at": "",
+      "extraction_time_sec": 0.0
+    },
+    "AArch64": {
+      "name": "AArch64",
+      "target_triple": "aarch64-unknown-linux-gnu",
+      "llvm_version": "18.1.0",
+      "modules": [
+        "MCCodeEmitter",
+        "ELFObjectWriter",
+        "AsmPrinter",
+        "ISelDAGToDAG",
+        "ISelLowering"
+      ],
+      "total_functions": 899,
+      "total_files": 7,
+      "total_lines": 0,
+      "interface_functions": 0,
+      "switch_functions": 0,
+      "extracted_at": "",
+      "extraction_time_sec": 0.0
+    },
+    "Mips": {
+      "name": "Mips",
+      "target_triple": "mips-unknown-linux-gnu",
+      "llvm_version": "18.1.0",
+      "modules": [
+        "MCCodeEmitter",
+        "ELFObjectWriter",
+        "AsmPrinter",
+        "ISelDAGToDAG",
+        "ISelLowering"
+      ],
+      "total_functions": 269,
+      "total_files": 10,
+      "total_lines": 0,
+      "interface_functions": 0,
+      "switch_functions": 0,
+      "extracted_at": "",
+      "extraction_time_sec": 0.0
+    },
+    "X86": {
+      "name": "X86",
+      "target_triple": "x86-unknown-linux-gnu",
+      "llvm_version": "18.1.0",
+      "modules": [
+        "MCCodeEmitter",
+        "ELFObjectWriter",
+        "AsmPrinter",
+        "ISelDAGToDAG",
+        "ISelLowering"
+      ],
+      "total_functions": 1034,
+      "total_files": 7,
+      "total_lines": 0,
+      "interface_functions": 0,
+      "switch_functions": 0,
+      "extracted_at": "",
+      "extraction_time_sec": 0.0
+    }
+  }
+}

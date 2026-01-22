@@ -53,3 +53,7 @@ llvm_cache/
 models/*.bin
 models/*.pt
 specs/inferred/
+
+# Large data files
+data/*.json
+!data/sample_*.json
