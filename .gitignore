@@ -52,6 +52,8 @@ results/*.json
 llvm_cache/
 models/*.bin
 models/*.pt
+models/*.safetensors
+models/repair_model/  # Trained model checkpoints (too large for git)
 specs/inferred/
 
 # Large data files

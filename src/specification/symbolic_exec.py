@@ -22,6 +22,22 @@ except ImportError:
     Z3_AVAILABLE = False
     logger.warning("Z3 not available. Symbolic execution will use string-based constraints only.")
 
+# Clang AST Parser availability check
+try:
+    from ..parsing.clang_ast_parser import (
+        ClangASTParser, 
+        ClangSymbolicExecutor,
+        FunctionInfo,
+        SwitchStatement,
+        ASTNode,
+        NodeType,
+        CLANG_AVAILABLE
+    )
+except ImportError:
+    CLANG_AVAILABLE = False
+    ClangASTParser = None
+    logger.info("Clang AST parser not available. Using regex-based parsing.")
+
 
 class SymbolicValueType(Enum):
     """Types of symbolic values."""
@@ -343,7 +359,9 @@ class SymbolicExecutor:
         max_depth: int = 50,
         max_paths: int = 100,
         timeout_ms: int = 30000,
-        verbose: bool = False
+        verbose: bool = False,
+        use_clang: bool = True,  # Use Clang AST if available
+        clang_path: Optional[str] = None
     ):
         """
         Initialize symbolic executor.
@@ -353,11 +371,24 @@ class SymbolicExecutor:
             max_paths: Maximum number of paths to explore
             timeout_ms: Execution timeout in milliseconds
             verbose: Enable verbose output
+            use_clang: Use Clang AST parser if available
+            clang_path: Optional path to libclang library
         """
         self.max_depth = max_depth
         self.max_paths = max_paths
         self.timeout_ms = timeout_ms
         self.verbose = verbose
+        
+        # Clang AST parser setup
+        self.use_clang = use_clang and CLANG_AVAILABLE
+        self.clang_parser: Optional['ClangASTParser'] = None
+        if self.use_clang:
+            try:
+                self.clang_parser = ClangASTParser(clang_path)
+                logger.info("Clang AST parser initialized for symbolic execution")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Clang parser: {e}. Using regex fallback.")
+                self.use_clang = False
         
         # Execution state
         self.paths: List[ExecutionPath] = []
@@ -410,13 +441,260 @@ class SymbolicExecutor:
                 initial_state.add_path_constraint(constraint)
         
         # Parse and execute
-        statements = self._parse_statements(code)
+        statements = self._parse_statements(code, function_name)
         self._execute_statements(statements, initial_state, 0)
         
         return self.paths
     
-    def _parse_statements(self, code: str) -> List[Dict[str, Any]]:
-        """Parse code into statement list."""
+    def _parse_statements(self, code: str, function_name: str = "") -> List[Dict[str, Any]]:
+        """
+        Parse code into statement list.
+        
+        Uses Clang AST parser if available, otherwise falls back to regex-based parsing.
+        """
+        # Try Clang AST parser first
+        if self.use_clang and self.clang_parser:
+            try:
+                return self._parse_statements_clang(code, function_name)
+            except Exception as e:
+                logger.warning(f"Clang parsing failed, using regex fallback: {e}")
+        
+        # Fallback to regex-based parsing
+        return self._parse_statements_regex(code)
+    
+    def _parse_statements_clang(self, code: str, function_name: str = "") -> List[Dict[str, Any]]:
+        """Parse code using Clang AST parser."""
+        if not self.clang_parser:
+            raise RuntimeError("Clang parser not initialized")
+        
+        # Parse the code
+        result = self.clang_parser.parse_code(code, "symbolic_input.cpp")
+        
+        if "error" in result:
+            raise RuntimeError(f"Clang parse error: {result['error']}")
+        
+        statements = []
+        
+        # Extract switch statements - enhanced parsing
+        for switch in self.clang_parser.switches:
+            # If Clang didn't parse cases properly, fall back to regex on original code
+            if not switch.cases:
+                # Try to extract switch from original code using regex
+                if self.verbose:
+                    logger.info("Clang switch parsing incomplete, using regex fallback")
+                # Fall back to full regex parsing for this code
+                return self._parse_statements_regex(code)
+                continue
+            
+            switch_stmt = {
+                'type': 'switch',
+                'expr': switch.condition_var,
+                'cases': [],
+                'default': None,
+                'source': 'clang'
+            }
+            
+            for case in switch.cases:
+                case_value = case.get('value', '')
+                case_stmts = case.get('statements', [])
+                has_break = case.get('has_break', False)
+                
+                # Convert statements to our format
+                case_body = []
+                for stmt in case_stmts:
+                    if 'return' in stmt.lower():
+                        match = re.search(r'return\s+(.+?);', stmt)
+                        if match:
+                            case_body.append({
+                                'type': 'return',
+                                'value': match.group(1)
+                            })
+                    else:
+                        case_body.append({
+                            'type': 'statement',
+                            'text': stmt
+                        })
+                
+                switch_stmt['cases'].append({
+                    'case': case_value,
+                    'body': case_body,
+                    'has_break': has_break
+                })
+            
+            if switch.has_default:
+                default_body = []
+                for stmt in switch.default_statements:
+                    if 'return' in stmt.lower():
+                        match = re.search(r'return\s+(.+?);', stmt)
+                        if match:
+                            default_body.append({
+                                'type': 'return',
+                                'value': match.group(1)
+                            })
+                switch_stmt['default'] = default_body
+            
+            statements.append(switch_stmt)
+        
+        # Extract function information if available
+        for func_name, func_info in self.clang_parser.functions.items():
+            if function_name and function_name not in func_name:
+                continue
+            
+            # Process AST nodes for additional statements
+            if func_info.ast:
+                self._extract_statements_from_ast(func_info.ast, statements)
+        
+        if self.verbose:
+            logger.info(f"Clang parsed {len(statements)} statements")
+        
+        # If Clang didn't find much, fall back to regex
+        return statements if statements else self._parse_statements_regex(code)
+    
+    def _parse_switch_from_source(self, source_text: str) -> Optional[Dict[str, Any]]:
+        """Parse switch statement from source text using regex."""
+        lines = source_text.split('\n')
+        
+        # Extract switch expression
+        match = re.search(r'switch\s*\((.+?)\)', source_text)
+        expr = match.group(1) if match else ""
+        
+        switch_stmt = {
+            'type': 'switch',
+            'expr': expr,
+            'cases': [],
+            'default': None
+        }
+        
+        current_case = None
+        case_body = []
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Parse case
+            case_match = re.match(r'case\s+(\w+(?:::\w+)?)\s*:', line)
+            if case_match:
+                # Save previous case
+                if current_case is not None:
+                    switch_stmt['cases'].append({
+                        'case': current_case,
+                        'body': case_body
+                    })
+                
+                current_case = case_match.group(1)
+                case_body = []
+                
+                # Check for inline return
+                return_match = re.search(r'return\s+(.+?);', line)
+                if return_match:
+                    case_body.append({
+                        'type': 'return',
+                        'value': return_match.group(1)
+                    })
+            
+            elif line.startswith('default'):
+                # Save previous case
+                if current_case is not None:
+                    switch_stmt['cases'].append({
+                        'case': current_case,
+                        'body': case_body
+                    })
+                
+                current_case = None
+                case_body = []
+                
+                # Check for inline return
+                return_match = re.search(r'return\s+(.+?);', line)
+                if return_match:
+                    switch_stmt['default'] = [{
+                        'type': 'return',
+                        'value': return_match.group(1)
+                    }]
+            
+            elif current_case is not None:
+                return_match = re.search(r'return\s+(.+?);', line)
+                if return_match:
+                    case_body.append({
+                        'type': 'return',
+                        'value': return_match.group(1)
+                    })
+            
+            elif switch_stmt['default'] is None and 'return' in line:
+                return_match = re.search(r'return\s+(.+?);', line)
+                if return_match:
+                    switch_stmt['default'] = [{
+                        'type': 'return',
+                        'value': return_match.group(1)
+                    }]
+        
+        # Save last case
+        if current_case is not None:
+            switch_stmt['cases'].append({
+                'case': current_case,
+                'body': case_body
+            })
+        
+        return switch_stmt if switch_stmt['cases'] or switch_stmt['default'] else None
+    
+    def _extract_statements_from_ast(self, node: 'ASTNode', statements: List[Dict[str, Any]]) -> None:
+        """Extract statements from AST node."""
+        if not CLANG_AVAILABLE or node is None:
+            return
+        
+        if node.node_type == NodeType.IF:
+            # Extract condition from source
+            condition = ""
+            if 'condition' in node.attributes:
+                condition = node.attributes['condition']
+            elif '{' in node.source_text:
+                condition = node.source_text.split('{')[0].replace('if', '').strip()
+                condition = condition.strip('(').strip(')')
+            
+            if_stmt = {
+                'type': 'if',
+                'condition': condition,
+                'then': [],
+                'else': [],
+                'source': 'clang'
+            }
+            
+            # Process children for then/else branches
+            for child in node.children:
+                if child.node_type == NodeType.RETURN:
+                    match = re.search(r'return\s+(.+?);', child.source_text)
+                    if match:
+                        if_stmt['then'].append({
+                            'type': 'return',
+                            'value': match.group(1)
+                        })
+            
+            statements.append(if_stmt)
+        
+        elif node.node_type == NodeType.FOR or node.node_type == NodeType.WHILE:
+            loop_stmt = {
+                'type': 'loop',
+                'loop_type': node.node_type.value,
+                'body': [],
+                'source': 'clang'
+            }
+            statements.append(loop_stmt)
+        
+        elif node.node_type == NodeType.RETURN:
+            match = re.search(r'return\s+(.+?);', node.source_text)
+            if match:
+                statements.append({
+                    'type': 'return',
+                    'value': match.group(1),
+                    'text': node.source_text,
+                    'source': 'clang'
+                })
+        
+        # Recurse into children
+        for child in node.children:
+            self._extract_statements_from_ast(child, statements)
+    
+    def _parse_statements_regex(self, code: str) -> List[Dict[str, Any]]:
+        """Parse code using regex-based parsing (fallback)."""
         statements = []
         lines = code.split('\n')
         

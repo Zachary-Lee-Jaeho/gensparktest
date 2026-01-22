@@ -13,7 +13,7 @@ from .interface_contract import InterfaceContract, Assumption, Guarantee
 from .function_verify import FunctionVerifier, FunctionVerificationResult
 from .module_verify import ModuleVerifier, ModuleVerificationResult
 from .backend_verify import BackendVerifier, BackendVerificationResult
-from .hierarchical_verifier import HierarchicalVerifier, HierarchicalResult
+from .hierarchical_verifier import HierarchicalVerifier, HierarchicalResult, VerificationLevel
 
 __all__ = [
     'InterfaceContract',
@@ -27,4 +27,5 @@ __all__ = [
     'BackendVerificationResult',
     'HierarchicalVerifier',
     'HierarchicalResult',
+    'VerificationLevel',
 ]

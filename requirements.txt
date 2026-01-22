@@ -8,9 +8,10 @@ click>=8.0
 # SMT Solver
 z3-solver>=4.12.0
 
-# Machine Learning (optional, for neural repair model)
+# Machine Learning (for neural repair model)
 torch>=2.0.0
 transformers>=4.30.0
+accelerate>=0.26.0  # Required for HuggingFace Trainer
 
 # Code Parsing
 tree-sitter>=0.20.0
