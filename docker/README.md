@@ -45,7 +45,7 @@ docker run --rm vega-verified:cpu vega-verify status
 ### GPU 이미지
 
 ```bash
-# GPU 이미지 빌드 (NVIDIA CUDA 12.1 기반)
+# GPU 이미지 빌드 (NVIDIA CUDA 13.0 기반)
 docker build -f Dockerfile.gpu -t vega-verified:gpu .
 
 # GPU 확인

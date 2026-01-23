@@ -18,7 +18,7 @@
 #       -v $(pwd)/models:/app/models \
 #       vega-verified:gpu python scripts/train_neural_repair.py --resume
 
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+FROM nvidia/cuda:13.0.0-runtime-ubuntu22.04
 
 LABEL maintainer="VEGA-Verified Team"
 LABEL description="GPU-enabled environment for VEGA-Verified neural training"
@@ -149,11 +149,11 @@ RUN pip install --no-cache-dir \
     rich>=13.0.0
 
 # ============================================================================
-# GPU-SPECIFIC: PyTorch with CUDA 12.1 support
+# GPU-SPECIFIC: PyTorch with CUDA 13.0 support
 # ============================================================================
 RUN pip install --no-cache-dir \
     torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu121
+    --index-url https://download.pytorch.org/whl/cu130
 
 # Transformers and training dependencies
 RUN pip install --no-cache-dir \

@@ -165,8 +165,8 @@ pip install -r requirements.txt
 # PyTorch 설치 (CPU)
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# PyTorch 설치 (GPU - CUDA 12.1)
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+# PyTorch 설치 (GPU - CUDA 13.0)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
 # Transformers 설치
 pip install transformers accelerate

@@ -94,7 +94,7 @@ python scripts/train_neural_repair.py --test-only
 
 ```bash
 # GPU 환경 설치
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 pip install transformers accelerate
 
 # GPU 사용 여부 확인
@@ -190,9 +190,9 @@ def _validate_spec(self, spec, functions):
 
 ```dockerfile
 # Dockerfile.gpu (생성 필요)
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+FROM nvidia/cuda:13.0.0-runtime-ubuntu22.04
 # ... GPU 전용 설정
-RUN pip install torch --index-url https://download.pytorch.org/whl/cu121
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 ```
 
 ---
@@ -246,7 +246,7 @@ python scripts/train_neural_repair.py --test-only
 
 ```bash
 # GPU PyTorch 설치
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
 # 전체 학습 실행
 ./scripts/run_full_training.sh --gpu --epochs 10

@@ -36,8 +36,8 @@ python scripts/train_neural_repair.py --test-only
 
 ### Minimal Test Run (GPU)
 ```bash
-# Install GPU dependencies
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+# Install GPU dependencies (CUDA 13.0)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 pip install transformers accelerate
 
 # Quick neural test with GPU
@@ -74,7 +74,7 @@ python -c "from src.verification import Verifier; print('Verifier: OK')"
 python -c "from src.repair import NeuralRepairEngine; print('Neural: OK')"
 ```
 
-### GPU Environment (NVIDIA CUDA)
+### GPU Environment (NVIDIA CUDA 13.0)
 
 ```bash
 # 1. Create virtual environment
@@ -84,8 +84,8 @@ source venv/bin/activate
 # 2. Install core dependencies
 pip install -r requirements.txt
 
-# 3. Install PyTorch with CUDA 12.1 support
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# 3. Install PyTorch with CUDA 13.0 support
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
 # 4. Install transformers and training dependencies
 pip install transformers accelerate datasets
@@ -739,7 +739,7 @@ python -m memory_profiler scripts/train_neural_repair.py --test-only
    
    # Reinstall PyTorch with correct CUDA version
    pip uninstall torch
-   pip install torch --index-url https://download.pytorch.org/whl/cu121
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
    ```
 
 2. **Out of memory (GPU)**
