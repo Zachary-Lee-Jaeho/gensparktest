@@ -154,22 +154,34 @@ class CGNRPipeline:
     
     @property
     def repair_model(self):
-        """Lazy load repair model."""
+        """Lazy load repair model using NeuralRepairEngine."""
         if self._repair_model is None:
-            from ..repair.model_finetuning import CodeT5RepairModel, TrainingConfig
-            config = TrainingConfig()
-            if self.model_path:
-                config.output_dir = str(Path(self.model_path).parent)
-            self._repair_model = CodeT5RepairModel(config)
-            # Load model if path specified
-            if self.model_path:
-                try:
-                    self._repair_model.load_model(self.model_path)
-                    if self.verbose:
-                        print(f"Loaded trained model from: {self.model_path}")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"Warning: Could not load model from {self.model_path}: {e}")
+            try:
+                from ..repair.neural_repair_engine import NeuralRepairEngine, NeuralRepairConfig
+                
+                config = NeuralRepairConfig(
+                    model_path=self.model_path,
+                    device="cpu",  # Default to CPU for compatibility
+                    num_return_sequences=self.max_candidates,
+                )
+                self._repair_model = NeuralRepairEngine(config)
+                
+                # Load model if path specified
+                if self.model_path:
+                    loaded = self._repair_model.load(self.model_path)
+                    if loaded and self.verbose:
+                        print(f"✅ Loaded trained model from: {self.model_path}")
+                    elif not loaded and self.verbose:
+                        print(f"⚠️ Could not load model, using rule-based fallback")
+                        
+            except ImportError as e:
+                if self.verbose:
+                    print(f"⚠️ NeuralRepairEngine not available: {e}")
+                # Fallback to old CodeT5RepairModel
+                from ..repair.model_finetuning import CodeT5RepairModel, TrainingConfig
+                config = TrainingConfig()
+                self._repair_model = CodeT5RepairModel(config)
+                
         return self._repair_model
     
     def run(
@@ -416,16 +428,34 @@ class CGNRPipeline:
                 num_candidates=self.max_candidates
             )
             
-            for repaired_code, confidence in neural_repairs:
-                candidates.append(RepairCandidate(
-                    code=repaired_code,
-                    confidence=confidence,
-                    source="neural",
-                    iteration=iteration
-                ))
+            # Handle different return types from different repair models
+            for repair in neural_repairs:
+                if hasattr(repair, 'code') and hasattr(repair, 'confidence'):
+                    # NeuralRepairEngine returns RepairCandidate objects
+                    candidates.append(RepairCandidate(
+                        code=repair.code,
+                        confidence=repair.confidence,
+                        source="neural",
+                        iteration=iteration
+                    ))
+                elif isinstance(repair, tuple) and len(repair) == 2:
+                    # Old format: (code, confidence) tuple
+                    repaired_code, confidence = repair
+                    candidates.append(RepairCandidate(
+                        code=repaired_code,
+                        confidence=confidence,
+                        source="neural",
+                        iteration=iteration
+                    ))
+                    
+            if self.verbose and candidates:
+                print(f"   Generated {len(candidates)} neural repair candidates")
+                
         except Exception as e:
             if self.verbose:
                 print(f"   Neural repair error: {e}")
+                import traceback
+                traceback.print_exc()
         
         # 2. Template-based repair
         template_repairs = self._template_repair(code, counterexample, specification)
@@ -449,7 +479,27 @@ class CGNRPipeline:
         """Generate template-based repair candidates."""
         candidates = []
         
+        # If no counterexample, try to generate candidates from specification
         if not counterexample:
+            # Try specification-based repair
+            expected_mappings = specification.get("expected_mappings", {})
+            if expected_mappings and "switch" in code:
+                # Find missing cases from specification
+                import re
+                existing_cases = set(re.findall(r'case\s+([\w:]+)\s*:', code))
+                
+                for kind, expected_return in expected_mappings.items():
+                    if kind not in existing_cases and "default:" in code:
+                        repair = code.replace(
+                            "default:",
+                            f"case {kind}:\n        return {expected_return};\n    default:"
+                        )
+                        candidates.append(RepairCandidate(
+                            code=repair,
+                            confidence=0.7,
+                            source="template_spec",
+                            iteration=0
+                        ))
             return candidates
         
         input_vals = counterexample.get("input_values", {})
@@ -478,6 +528,7 @@ class CGNRPipeline:
             import re
             
             # Find the wrong return and fix it
+            # Try exact match first
             pattern = rf'return\s+{re.escape(actual)}\s*;'
             repair = re.sub(pattern, f'return {expected};', code, count=1)
             
@@ -488,6 +539,19 @@ class CGNRPipeline:
                     source="template",
                     iteration=0
                 ))
+            else:
+                # Try matching without namespace prefix (ELF:: etc.)
+                actual_base = actual.split("::")[-1] if "::" in actual else actual
+                pattern_base = rf'return\s+[\w:]*{re.escape(actual_base)}\s*;'
+                repair = re.sub(pattern_base, f'return {expected};', code, count=1)
+                
+                if repair != code:
+                    candidates.append(RepairCandidate(
+                        code=repair,
+                        confidence=0.8,
+                        source="template",
+                        iteration=0
+                    ))
         
         return candidates
     

@@ -78,13 +78,13 @@ class NeuralRepairConfig:
     max_target_length: int = 512
     num_beams: int = 10
     num_return_sequences: int = 5
-    temperature: float = 0.8
-    top_p: float = 0.95
+    temperature: float = 1.0  # 1.0 for deterministic, <1.0 for more focused
+    top_p: float = 1.0  # 1.0 to disable nucleus sampling
     top_k: int = 50
-    do_sample: bool = True
+    do_sample: bool = False  # False for deterministic beam search
     length_penalty: float = 1.0
     early_stopping: bool = True
-    no_repeat_ngram_size: int = 3
+    no_repeat_ngram_size: int = 0  # 0 to allow repetition (important for code)
     
     # Device settings
     device: Optional[str] = None  # None = auto-detect
@@ -500,6 +500,7 @@ class NeuralRepairEngine:
         
         - Removes model artifacts
         - Fixes common formatting issues
+        - Fixes tokenization errors in identifiers
         - Falls back to original if generation is invalid
         """
         import re
@@ -517,6 +518,37 @@ class NeuralRepairEngine:
         
         # Clean up whitespace
         code = code.strip()
+        
+        # Fix common tokenization errors in compiler backend identifiers
+        # Pattern: FK _Data -> FK_Data, R_X64 -> R_X86_64, etc.
+        
+        # Fix split underscores: "FK _Data" -> "FK_Data"
+        code = re.sub(r'(\w+)\s+_(\w+)', r'\1_\2', code)
+        
+        # Fix split identifiers with dots: "FK.Data" -> "FK_Data"
+        code = re.sub(r'(\bFK)\.(\w+)', r'\1_\2', code)
+        code = re.sub(r'(\bR_X\d*)\.(\w+)', r'\1_\2', code)
+        
+        # Fix truncated R_X86_64 patterns: "R_X64_64" -> "R_X86_64_64"
+        code = re.sub(r'\bR_X64_(\d+)\b', r'R_X86_64_\1', code)
+        # Also handle "R_X64_64" without underscore before number
+        code = re.sub(r'\bR_X64(\d+)\b', r'R_X86_64_\1', code)
+        code = re.sub(r'\breturnR_X', r'return R_X', code)
+        
+        # Fix lowercase relocation types: "r_X86" -> "R_X86"
+        code = re.sub(r'\br_X(\d+)', r'R_X\1', code)
+        
+        # Fix RISCV patterns: "R_RISCV_LO12_s" -> "R_RISCV_LO12_S"
+        code = re.sub(r'(R_RISCV_\w+)_([a-z])\b', lambda m: f'{m.group(1)}_{m.group(2).upper()}', code)
+        
+        # Fix ELF:: prefix patterns
+        code = re.sub(r'\bELF\s*::\s*', 'ELF::', code)
+        
+        # Fix missing spaces after return
+        code = re.sub(r'\breturn([A-Z])', r'return \1', code)
+        
+        # Fix multiple spaces
+        code = re.sub(r'  +', ' ', code)
         
         # Validate basic structure
         if not code:
