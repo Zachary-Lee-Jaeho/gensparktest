@@ -315,6 +315,95 @@ docker run --rm --gpus all -v $(pwd)/models:/app/models vega-verified:gpu \
 
 ---
 
+## 🔬 학습된 모델로 실험하기
+
+모델 학습이 완료되면 `models/repair_model/final/` 디렉토리에 학습된 모델이 저장됩니다.
+
+### 학습된 모델 확인
+
+```bash
+# 모델 파일 확인
+ls -la models/repair_model/final/
+# 예상 출력:
+# config.json
+# model.safetensors (또는 pytorch_model.bin)
+# tokenizer_config.json
+# tokenizer.json
+```
+
+### 학습된 모델로 실험 실행
+
+```bash
+# 기본: 학습된 모델로 repair 실험 (GPU 권장)
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cuda
+
+# CPU에서 실행 (느림, 테스트용)
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cpu
+
+# 전체 실험 + 학습된 모델
+vega-verify experiment --all --model-path models/repair_model/final --device cuda
+
+# 샘플 크기 조절
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cuda --sample-size 200
+
+# 특정 백엔드만 테스트
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cuda --backend riscv
+```
+
+### Python API로 학습된 모델 사용
+
+```python
+from src.repair import NeuralRepairEngine, NeuralRepairConfig
+
+# 학습된 모델 로드
+config = NeuralRepairConfig(
+    model_path="models/repair_model/final",
+    model_name="Salesforce/codet5-large",  # 학습 시 사용한 모델
+    device="cuda"  # 또는 "cpu"
+)
+engine = NeuralRepairEngine(config)
+engine.load()
+
+# 버그 수리
+buggy_code = '''
+switch (Kind) {
+    case FK_Data_4: return R_X86_64_32;
+    default: return R_X86_64_NONE;
+}
+'''
+counterexample = {
+    'Kind': 'FK_Data_8',
+    'expected': 'R_X86_64_64',
+    'actual': 'R_X86_64_NONE'
+}
+
+candidates = engine.repair(buggy_code, counterexample, num_candidates=5)
+for i, (code, confidence) in enumerate(candidates):
+    print(f"후보 {i+1} (신뢰도: {confidence:.3f}):")
+    print(code)
+```
+
+### Docker에서 실험
+
+```bash
+# 학습된 모델이 models/ 디렉토리에 있을 때
+docker run --rm --gpus all \
+    -v $(pwd)/models:/app/models \
+    vega-verified:gpu \
+    vega-verify experiment --experiment repair --model-path /app/models/repair_model/final --device cuda
+```
+
+### 참고: 모델 없이 실행
+
+`--model-path`를 지정하지 않으면 **규칙 기반 폴백(rule-based fallback)**을 사용합니다:
+
+```bash
+# 규칙 기반 폴백 사용 (Neural 모델 없음)
+vega-verify experiment --experiment repair
+```
+
+---
+
 ## 📁 프로젝트 구조
 
 ```

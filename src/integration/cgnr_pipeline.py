@@ -113,11 +113,13 @@ class CGNRPipeline:
         max_iterations: int = 10,
         max_candidates_per_iteration: int = 5,
         timeout_seconds: int = 300,
+        model_path: Optional[str] = None,
         verbose: bool = False
     ):
         self.max_iterations = max_iterations
         self.max_candidates = max_candidates_per_iteration
         self.timeout_seconds = timeout_seconds
+        self.model_path = model_path
         self.verbose = verbose
         
         # Components (lazy-loaded)
@@ -156,8 +158,18 @@ class CGNRPipeline:
         if self._repair_model is None:
             from ..repair.model_finetuning import CodeT5RepairModel, TrainingConfig
             config = TrainingConfig()
+            if self.model_path:
+                config.output_dir = str(Path(self.model_path).parent)
             self._repair_model = CodeT5RepairModel(config)
-            # Note: Model will run in mock mode if not trained
+            # Load model if path specified
+            if self.model_path:
+                try:
+                    self._repair_model.load_model(self.model_path)
+                    if self.verbose:
+                        print(f"Loaded trained model from: {self.model_path}")
+                except Exception as e:
+                    if self.verbose:
+                        print(f"Warning: Could not load model from {self.model_path}: {e}")
         return self._repair_model
     
     def run(

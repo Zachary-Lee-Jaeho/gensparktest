@@ -350,10 +350,13 @@ def verify(ctx, code: str, spec: Optional[str], backend: str,
               help='Maximum CGNR iterations')
 @click.option('--strategy', type=click.Choice(['template', 'neural', 'hybrid']),
               default='hybrid', help='Repair strategy')
+@click.option('--model-path', '-m', type=click.Path(),
+              default='models/repair_model/final',
+              help='Path to trained neural repair model')
 @click.option('--save-repaired', is_flag=True, help='Save repaired code to file')
 @click.pass_context
 def repair(ctx, code: str, spec: Optional[str], backend: str,
-           max_iterations: int, strategy: str, save_repaired: bool):
+           max_iterations: int, strategy: str, model_path: str, save_repaired: bool):
     """
     Repair a buggy compiler backend function using CGNR.
     
@@ -361,6 +364,7 @@ def repair(ctx, code: str, spec: Optional[str], backend: str,
     Examples:
       vega-verify repair --code buggy.cpp --spec spec.json
       vega-verify repair --code buggy.cpp --strategy template --max-iterations 5
+      vega-verify repair --code buggy.cpp --model-path models/repair_model/final
     """
     verbose = ctx.obj['verbose']
     output_dir = ctx.obj['output']
@@ -386,8 +390,14 @@ def repair(ctx, code: str, spec: Optional[str], backend: str,
         # Run CGNR repair
         from src.integration.cgnr_pipeline import CGNRPipeline
         
+        # Use model path if neural strategy
+        use_model_path = model_path if strategy in ['neural', 'hybrid'] else None
+        if use_model_path:
+            print_info(f"Using trained model: {model_path}")
+        
         pipeline = CGNRPipeline(
             max_iterations=max_iterations,
+            model_path=use_model_path,
             verbose=verbose
         )
         
@@ -477,9 +487,14 @@ def repair(ctx, code: str, spec: Optional[str], backend: str,
 @click.option('--sample-size', '-n', type=int, default=100,
               help='Number of functions to sample (0 for all)')
 @click.option('--seed', type=int, default=42, help='Random seed for reproducibility')
+@click.option('--model-path', '-m', type=click.Path(),
+              default='models/repair_model/final',
+              help='Path to trained neural repair model')
+@click.option('--device', '-d', type=click.Choice(['auto', 'cuda', 'cpu']),
+              default='auto', help='Device to use for neural inference')
 @click.pass_context
 def experiment(ctx, run_all: bool, experiment: Optional[str], backend: str,
-               sample_size: int, seed: int):
+               sample_size: int, seed: int, model_path: str, device: str):
     """
     Run experiments for paper reproduction.
     
@@ -508,7 +523,17 @@ def experiment(ctx, run_all: bool, experiment: Optional[str], backend: str,
     print_info(f"Backend(s): {backend}")
     print_info(f"Sample size: {sample_size if sample_size > 0 else 'all'}")
     print_info(f"Random seed: {seed}")
+    print_info(f"Model path: {model_path}")
+    print_info(f"Device: {device}")
     print_info("=" * 60)
+    
+    # Validate model path for repair experiments
+    if 'repair' in experiments_to_run or run_all:
+        model_dir = Path(model_path)
+        if model_dir.exists():
+            print_success(f"Found trained model at: {model_path}")
+        else:
+            print_warning(f"Model not found at: {model_path}, will use rule-based fallback")
     
     all_results = {}
     
@@ -522,7 +547,8 @@ def experiment(ctx, run_all: bool, experiment: Optional[str], backend: str,
                 )
             elif exp_name == 'repair':
                 result = run_repair_experiment(
-                    backend, sample_size, seed, verbose, output_dir
+                    backend, sample_size, seed, verbose, output_dir,
+                    model_path=model_path, device=device
                 )
             elif exp_name == 'comparison':
                 result = run_comparison_experiment(
@@ -672,8 +698,19 @@ def run_verification_experiment(backend: str, sample_size: int, seed: int,
 
 
 def run_repair_experiment(backend: str, sample_size: int, seed: int,
-                          verbose: bool, output_dir: Path) -> Dict[str, Any]:
-    """Run repair experiment."""
+                          verbose: bool, output_dir: Path,
+                          model_path: str = None, device: str = 'auto') -> Dict[str, Any]:
+    """Run repair experiment with trained neural model.
+    
+    Args:
+        backend: Target backend to evaluate
+        sample_size: Number of functions to test
+        seed: Random seed for reproducibility
+        verbose: Enable verbose output
+        output_dir: Output directory for results
+        model_path: Path to trained neural repair model
+        device: Device for inference ('auto', 'cuda', 'cpu')
+    """
     import random
     random.seed(seed)
     
@@ -708,7 +745,23 @@ def run_repair_experiment(backend: str, sample_size: int, seed: int,
     
     print_info(f"Evaluating repair on {len(functions)} functions...")
     
-    pipeline = CGNRPipeline(max_iterations=5, verbose=verbose)
+    # Validate and use model path
+    effective_model_path = None
+    if model_path:
+        model_dir = Path(model_path)
+        if model_dir.exists():
+            effective_model_path = str(model_dir)
+            print_info(f"Using trained neural model: {effective_model_path}")
+        else:
+            print_warning(f"Model path not found: {model_path}, using rule-based fallback")
+    
+    # Set device environment variable for neural inference
+    if device != 'auto':
+        import os
+        os.environ['VEGA_DEVICE'] = device
+        print_info(f"Device set to: {device}")
+    
+    pipeline = CGNRPipeline(max_iterations=5, model_path=effective_model_path, verbose=verbose)
     inferrer = SpecificationInferrer()
     bug_generator = SyntheticBugGenerator()
     

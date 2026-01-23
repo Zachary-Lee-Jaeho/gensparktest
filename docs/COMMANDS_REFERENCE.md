@@ -432,6 +432,29 @@ vega-verify experiment --experiment comparison
 vega-verify experiment --experiment ablation
 ```
 
+### 🔥 학습된 Neural 모델로 실험 (중요!)
+
+GPU 서버에서 모델을 학습한 후, 학습된 모델을 사용하여 실험을 실행합니다:
+
+```bash
+# 학습된 모델 경로 지정 (기본값: models/repair_model/final)
+vega-verify experiment --experiment repair --model-path models/repair_model/final
+
+# GPU에서 실행
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cuda
+
+# CPU에서 실행 (느림)
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cpu
+
+# 전체 실험 + 학습된 모델
+vega-verify experiment --all --model-path models/repair_model/final --device cuda
+
+# 큰 샘플 크기로 실험
+vega-verify experiment --experiment repair --model-path models/repair_model/final --device cuda --sample-size 500
+```
+
+**참고**: `--model-path`를 지정하지 않으면 rule-based fallback을 사용합니다.
+
 ### Experiment with Specific Backends
 
 ```bash
