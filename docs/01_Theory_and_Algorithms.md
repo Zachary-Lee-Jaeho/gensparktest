@@ -1,8 +1,14 @@
-# VEGA-Verified: 이론적 기반 및 알고리즘 상세
+# 컴파일러 백엔드 자동생성: 이론적 기반 및 알고리즘
+
+**저자**: VEGA-Verified Research Team  
+**최종 수정**: 2026-01-23  
+**버전**: 2.0 (VeGen, Hydride 분석 통합)
+
+---
 
 ## 목차
-1. [서론](#1-서론)
-2. [이론적 배경](#2-이론적-배경)
+1. [서론 및 문제 정의](#1-서론-및-문제-정의)
+2. [관련 연구의 이론적 기반](#2-관련-연구의-이론적-기반)
 3. [핵심 알고리즘](#3-핵심-알고리즘)
 4. [형식적 정의](#4-형식적-정의)
 5. [정확성 증명](#5-정확성-증명)
@@ -10,186 +16,385 @@
 
 ---
 
-## 1. 서론
+## 1. 서론 및 문제 정의
 
-### 1.1 문제 정의
-
-컴파일러 백엔드 자동 생성 문제를 형식적으로 정의합니다.
+### 1.1 Compiler Backend Generation Problem의 형식적 정의
 
 **정의 1.1 (Compiler Backend Generation Problem)**
+
+새로운 ISA를 위한 컴파일러 백엔드 자동생성 문제는 다음과 같이 정의됩니다:
+
 ```
 Given:
-  - Source IR: I (e.g., LLVM IR)
-  - Target Description: T = (R, ISA, ABI)
-    where R = registers, ISA = instruction set, ABI = calling conventions
-  - Reference Backends: B_ref = {B_1, B_2, ..., B_n}
+  - ISA Specification: S = (R, I, E, Sem)
+    where:
+      R = Register Set (레지스터 집합)
+      I = Instruction Set (명령어 집합)
+      E = Encoding Rules (인코딩 규칙)
+      Sem = Instruction Semantics (명령어 의미론)
+  
+  - Source IR: L (e.g., LLVM IR, Halide IR)
+  
+  - (Optional) Reference Backends: B_ref = {B_1, ..., B_n}
+    for similar architectures
 
 Find:
-  - Target Backend: B_target such that
-    ∀ p ∈ Programs(I): semantics(compile(B_target, p)) ≡ semantics(p)
+  - Target Backend: B_target = (IS, RA, CG, ABI)
+    where:
+      IS = Instruction Selection (명령어 선택)
+      RA = Register Allocation (레지스터 할당)
+      CG = Code Generation (코드 생성)
+      ABI = Application Binary Interface
+    
+    such that:
+      ∀ p ∈ Programs(L): 
+        semantics(compile(B_target, p)) ≡ semantics(p)
 ```
 
-### 1.2 VEGA의 한계
+### 1.2 문제의 핵심 난제
 
-VEGA는 다음 속성을 보장하지 못합니다:
-
-**속성 1 (Semantic Preservation)**
+**난제 1: ISA 스펙 문서의 크기**
 ```
-∀ p ∈ Programs: ⟦compile(B_vega, p)⟧_target ≡ ⟦p⟧_source
+현실적 규모:
+- RISC-V Unprivileged Spec: ~150 페이지
+- ARM Architecture Reference Manual: ~8,000+ 페이지
+- Intel SDM: ~5,000+ 페이지
+
+도전 과제:
+- 자연어/PDF 형식의 비정형 데이터
+- LLM context window 제한 (수만 토큰)
+- 명령어 간 상호 의존성 분석
 ```
 
-VEGA는 통계적 정확도(~71%)만 제공하며, 개별 함수의 semantic correctness를 보장하지 않습니다.
+**난제 2: 의미론적 정확성 보장**
+```
+요구사항:
+∀ instr ∈ I, ∀ operands:
+  semantics(generate(instr, operands)) ≡ Sem(instr)(operands)
 
-### 1.3 VEGA-Verified의 목표
+문제:
+- 기존 ML 기반 방법 (VEGA): ~71% 함수 수준 정확도
+- 28.5%의 함수가 틀리면 컴파일러는 사용 불가
+```
 
-VEGA-Verified는 다음을 보장합니다:
+**난제 3: 새로운 ISA의 "유사성" 부재**
+```
+가정이 깨지는 경우:
+- 완전히 새로운 addressing mode
+- 비표준 calling convention
+- 특수 목적 명령어
+- 새로운 메모리 일관성 모델
+```
 
-1. **Soundness**: 생성된 코드가 specification을 위반하지 않음
-2. **Completeness**: 가능한 모든 올바른 코드를 생성할 수 있음 (bounded)
-3. **Incrementality**: 부분적 검증 결과를 재사용 가능
+### 1.3 기존 접근법의 이론적 한계
+
+| 접근법 | 이론적 기반 | 한계 |
+|--------|------------|------|
+| VEGA | Statistical Learning | Semantic preservation 보장 없음 |
+| VeGen | SMT-based Semantics | 벡터화만, 전체 백엔드 아님 |
+| Hydride | Program Synthesis (SyGuS) | DSL 특화, 유사 ISA 필요 |
+| ACT | Equality Saturation | Tensor Accelerator 전용 |
+| Isaria | E-graph Rewriting | 벡터화만, 인터프리터 필요 |
+| OpenVADL | Operational Semantics | 명세 작성 ≈ 백엔드 개발 |
 
 ---
 
-## 2. 이론적 배경
+## 2. 관련 연구의 이론적 기반
 
-### 2.1 Abstract Interpretation 이론
+### 2.1 VeGen의 Lane Level Parallelism (LLP) 이론
 
-**정의 2.1 (Galois Connection)**
+**정의 2.1 (Lane Level Parallelism)**
 
-두 complete lattice (C, ⊑_C)와 (A, ⊑_A) 사이의 Galois connection은 함수 쌍 (α, γ)입니다:
-```
-α: C → A  (abstraction)
-γ: A → C  (concretization)
-
-such that: ∀c ∈ C, a ∈ A: α(c) ⊑_A a ⟺ c ⊑_C γ(a)
-```
-
-**응용**: Reference backend의 concrete execution을 abstract domain으로 lifting하여 specification 추론
+VeGen이 제안한 LLP는 SIMD를 일반화한 병렬성 모델입니다:
 
 ```
-           α
-Concrete ────→ Abstract
-Execution      Specification
-    ↓              ↓
-Reference     Inferred
-Backends      Pre/Post conditions
+Traditional SLP (Superword Level Parallelism):
+  - 모든 레인에서 동일한 연산 (isomorphic)
+  - 레인 간 통신 없음 (element-wise)
+
+Lane Level Parallelism (LLP):
+  - 다른 연산이 각 레인에서 실행 가능 (non-isomorphic)
+  - 크로스-레인 통신 허용 (cross-lane)
+
+형식적 정의:
+  LLP Instruction = (Ops, LaneBinding)
+  where:
+    Ops = [op₁, op₂, ..., opₙ]  (레인별 연산)
+    LaneBinding: Lane → InputLanes (입력 레인 매핑)
 ```
 
-### 2.2 Hoare Logic과 Verification Conditions
-
-**정의 2.2 (Hoare Triple)**
+**예시: Intel vpmaddwd (Multiply-Add)**
 ```
-{P} S {Q}
+입력: a[0..3], b[0..3] (16-bit)
+출력: c[0..1] (32-bit)
 
-P: Precondition (입력 조건)
-S: Statement (프로그램)
-Q: Postcondition (출력 조건)
-```
+연산:
+  c[0] = sext32(a[0]) * sext32(b[0]) + sext32(a[1]) * sext32(b[1])
+  c[1] = sext32(a[2]) * sext32(b[2]) + sext32(a[3]) * sext32(b[3])
 
-**의미**: P가 성립하는 상태에서 S를 실행하면, 종료 시 Q가 성립
-
-**Verification Condition Generation**:
-```
-wp(S, Q) = weakest precondition such that {wp(S,Q)} S {Q}
-
-VC = P ⟹ wp(S, Q)
+LLP 표현:
+  Ops = [madd_pair, madd_pair]
+  LaneBinding:
+    c[0] ← {a[0], b[0], a[1], b[1]}
+    c[1] ← {a[2], b[2], a[3], b[3]}
 ```
 
-### 2.3 Counterexample-Guided Abstraction Refinement (CEGAR)
+### 2.2 Hydride의 ISA Similarity Analysis
 
-**알고리즘 개요**:
+**정의 2.2 (ISA Operation Equivalence)**
+
+두 ISA 연산 op₁, op₂가 동치(equivalent)인 경우:
 ```
-1. Initial abstraction A₀
+op₁ ≡ op₂ ⟺ ∀ inputs: op₁(inputs) = op₂(inputs)
+              ∧ type(inputs₁) = type(inputs₂)
+              ∧ type(output₁) = type(output₂)
+```
+
+**정의 2.3 (ISA Operation Similarity)**
+
+두 ISA 연산이 유사(similar)한 경우:
+```
+op₁ ~ op₂ ⟺ ∃ parameterization P:
+              op₁ = instantiate(P, params₁)
+              op₂ = instantiate(P, params₂)
+
+where P = parameterized operation (bitwidth, lane count, etc.)
+```
+
+**예시: Vector Addition Similarity**
+```
+x86 AVX:    vaddps ymm0, ymm1, ymm2  (8 × 32-bit float add)
+ARM NEON:   fadd v0.4s, v1.4s, v2.4s (4 × 32-bit float add)
+
+Similar via parameterization:
+  P = VectorAdd(elem_type, lane_count)
+  x86: VectorAdd(float32, 8)
+  ARM: VectorAdd(float32, 4)
+```
+
+**Hydride의 압축률**:
+```
+| Architecture | ISA Size | AutoLLVM Size | Compression |
+|--------------|----------|---------------|-------------|
+| x86          | 2,029    | 136           | 6.7%        |
+| ARM          | 1,221    | 177           | 14.5%       |
+| Combined     | 3,557    | 397           | 11.2%       |
+```
+
+### 2.3 형식적 검증 이론
+
+**2.3.1 Hoare Logic for Backend Verification**
+
+**정의 2.4 (Hoare Triple for Instruction Selection)**
+```
+{Pre} IS(ir_pattern) {Post}
+
+where:
+  Pre  = IR semantics precondition
+  IS   = Instruction selection function
+  Post = Target semantics postcondition
+
+Correctness requirement:
+  ⟦ir_pattern⟧_IR ≡ ⟦IS(ir_pattern)⟧_Target
+```
+
+**2.3.2 SMT-based Verification (VeGen 방식)**
+
+**정의 2.5 (Pattern Equivalence Verification)**
+```
+verify_pattern(ir_pattern, target_instr) =
+  let ir_sem    = ⟦ir_pattern⟧_SMT
+  let target_sem = ⟦target_instr⟧_SMT
+  in SMT.check(ir_sem ≠ target_sem) = UNSAT
+```
+
+**VeGen의 검증 파이프라인**:
+```
+Intel Intrinsics Guide (XML)
+        ↓
+Pseudocode Parser
+        ↓
+Z3 SMT Formula
+        ↓
+Pattern Matcher Generation
+        ↓
+SMT Equivalence Check
+        ↓
+Verified Vectorizer
+```
+
+### 2.4 Counterexample-Guided Abstraction Refinement (CEGAR)
+
+**알고리즘 2.1: CEGAR for Backend Verification**
+```
+Algorithm: CEGAR_Backend_Verify
+─────────────────────────────────────────────────────────────────────
+Input:
+  - Generated backend B
+  - ISA semantics Sem
+  
+Output:
+  - VERIFIED or (FAIL, counterexample)
+
+Procedure:
+─────────────────────────────────────────────────────────────────────
+1. abstraction A ← initial_abstraction(B)
 2. while true:
-   a. Model check A_i
-   b. if no counterexample: return SAFE
-   c. if counterexample is real: return UNSAFE
-   d. Refine: A_{i+1} = refine(A_i, counterexample)
+   3. result ← model_check(A, Sem)
+   4. if result = SAFE:
+        return VERIFIED
+   5. cex ← extract_counterexample(result)
+   6. if is_real_counterexample(cex, B):
+        return (FAIL, cex)
+   7. A ← refine_abstraction(A, cex)
+─────────────────────────────────────────────────────────────────────
 ```
-
-**VEGA-Verified에서의 적용**:
-- Abstraction: Neural model의 code generation
-- Model checking: Formal verification
-- Refinement: Counterexample-guided neural repair
-
-### 2.4 Assume-Guarantee Reasoning
-
-**정의 2.3 (Assume-Guarantee Rule)**
-```
-Module M₁ satisfies property P under assumption A:
-  A ⊢ M₁ : P
-
-If M₂ guarantees A:
-  ⊢ M₂ : A
-
-Then composition satisfies P:
-  ⊢ M₁ ∥ M₂ : P
-```
-
-**응용**: 모듈별 독립 검증 후 전체 백엔드 correctness 도출
 
 ---
 
 ## 3. 핵심 알고리즘
 
-### 3.1 Algorithm 1: Automated Specification Inference
+### 3.1 Algorithm 1: Scalable ISA Specification Extraction
+
+대용량 ISA 스펙 문서를 처리하기 위한 알고리즘입니다.
 
 ```
-Algorithm: InferSpecification
+Algorithm: ScalableISAExtraction
 ─────────────────────────────────────────────────────────────────────
-Input: 
-  - Function name: f
-  - Reference implementations: R = {r₁, r₂, ..., rₙ} from different targets
+Input:
+  - ISA specification document: D (PDF, XML, or text)
+  - Document type: type ∈ {PDF, VendorXML, Text}
 
 Output:
-  - Specification: Spec(f) = (Pre, Post, Inv)
+  - ISA Model: M = (R, I, E, Sem)
 
 Procedure:
 ─────────────────────────────────────────────────────────────────────
-1. PARSE each rᵢ into AST: AST_i ← parse(rᵢ)
+1. // Phase 1: Document Structure Analysis
+   IF type = VendorXML:
+      // VeGen/Hydride 방식: 직접 파싱
+      structure ← ParseVendorXML(D)
+   ELSE:
+      // PDF/Text: 구조적 분석
+      toc ← ExtractTableOfContents(D)
+      sections ← PartitionBySection(D, toc)
+      structure ← ClassifySections(sections)
+        // → {registers, instructions, encoding, semantics}
 
-2. EXTRACT control flow graphs: CFG_i ← extractCFG(AST_i)
+2. // Phase 2: Register Set Extraction
+   R ← ∅
+   FOR each section s ∈ structure.registers:
+      regs ← ExtractRegisterDefinitions(s)
+      R ← R ∪ regs
+   VALIDATE RegisterConsistency(R)
 
-3. ALIGN implementations using edit distance:
-   Alignment ← GumTreeAlign({CFG_1, ..., CFG_n})
+3. // Phase 3: Instruction Set Extraction (병렬 처리 가능)
+   I ← ∅
+   FOR each instruction_page p ∈ structure.instructions:
+      // 각 명령어는 독립적으로 처리 (LLM context 내)
+      instr ← ExtractSingleInstruction(p)
+      I ← I ∪ {instr}
    
-4. For each aligned statement group G:
-   a. IF all implementations agree (target-independent):
-      - Add to Inv: Inv ← Inv ∪ {extractInvariant(G)}
-   b. ELSE (target-specific):
-      - Abstract common pattern: pattern ← abstract(G)
-      - Add parametric invariant: Inv ← Inv ∪ {parametrize(pattern)}
+4. // Phase 4: Encoding Rule Extraction
+   E ← ∅
+   FOR each instr ∈ I:
+      encoding ← ExtractEncoding(instr, structure.encoding)
+      E ← E ∪ {(instr, encoding)}
 
-5. EXTRACT preconditions:
-   Pre ← ∅
-   For each null check, bounds check, type check in R:
-      Pre ← Pre ∪ {extractPrecondition(check)}
+5. // Phase 5: Semantics Extraction (VeGen 방식)
+   Sem ← ∅
+   FOR each instr ∈ I:
+      IF HasPseudocode(instr):
+         smt_formula ← PseudocodeToSMT(instr.pseudocode)
+      ELSE:
+         smt_formula ← InferSemanticsFromDescription(instr)
+      Sem ← Sem ∪ {(instr, smt_formula)}
 
-6. EXTRACT postconditions:
-   Post ← ∅
-   For each return statement pattern in R:
-      Post ← Post ∪ {extractPostcondition(return_pattern)}
-
-7. VALIDATE specification:
-   For each rᵢ ∈ R:
-      Assert: verify(rᵢ, (Pre, Post, Inv)) = VALID
-      
-8. Return (Pre, Post, Inv)
+6. // Phase 6: Cross-Reference Validation
+   ValidateCrossReferences(R, I, E, Sem)
+   
+7. RETURN (R, I, E, Sem)
 ─────────────────────────────────────────────────────────────────────
 ```
 
-**복잡도**: O(n × m × log(m)) where n = #references, m = max AST size
+**복잡도 분석**:
+- 시간: O(|D| + |I| × avg_instr_size)
+- 공간: O(|I| × max_instr_representation)
+- 병렬화 가능: Phase 3, 5는 명령어별 독립 처리
 
-### 3.2 Algorithm 2: Counterexample-Guided Neural Repair (CGNR)
+### 3.2 Algorithm 2: Hybrid Backend Synthesis
+
+VeGen, Hydride, VADL의 장점을 결합한 합성 알고리즘입니다.
+
+```
+Algorithm: HybridBackendSynthesis
+─────────────────────────────────────────────────────────────────────
+Input:
+  - ISA Model: M = (R, I, E, Sem)
+  - Source IR: L
+  - (Optional) Similar ISA backends: B_similar = {B₁, ..., Bₖ}
+
+Output:
+  - Target Backend: B_target
+
+Procedure:
+─────────────────────────────────────────────────────────────────────
+1. // Initialize backend components
+   B_target ← EmptyBackend()
+
+2. // Component 1: Register Information (direct from spec)
+   B_target.RegisterInfo ← GenerateRegisterInfo(M.R)
+
+3. // Component 2: Instruction Information
+   B_target.InstrInfo ← GenerateInstrInfo(M.I, M.E)
+
+4. // Component 3: Instruction Selection Patterns
+   patterns ← ∅
+   
+   // Strategy A: VeGen 방식 (벡터 명령어)
+   IF HasVectorInstructions(M.I):
+      FOR each vec_instr ∈ VectorInstructions(M.I):
+         pattern ← VeGenPatternGeneration(vec_instr, M.Sem)
+         IF SMTVerify(pattern, M.Sem[vec_instr]):
+            patterns ← patterns ∪ {pattern}
+   
+   // Strategy B: Hydride 방식 (유사 ISA에서 전이)
+   IF B_similar ≠ ∅:
+      similarity_map ← HydrideSimilarityAnalysis(M.I, B_similar)
+      FOR each (instr, similar_instr) ∈ similarity_map:
+         transferred ← TransferPattern(B_similar, similar_instr, instr)
+         IF Validate(transferred, M.Sem[instr]):
+            patterns ← patterns ∪ {transferred}
+   
+   // Strategy C: VADL 방식 (의미론에서 추론)
+   FOR each instr ∈ M.I WHERE NOT HasPattern(patterns, instr):
+      inferred ← InferPatternFromSemantics(M.Sem[instr])
+      patterns ← patterns ∪ {inferred}
+   
+   B_target.Patterns ← patterns
+
+5. // Component 4: Code Emitter
+   B_target.CodeEmitter ← GenerateCodeEmitter(M.E)
+
+6. // Component 5: ABI (from spec or inferred)
+   B_target.ABI ← InferABI(M.R, M.I)
+
+7. RETURN B_target
+─────────────────────────────────────────────────────────────────────
+```
+
+### 3.3 Algorithm 3: Counterexample-Guided Neural Repair (CGNR)
+
+검증 실패 시 자동 수정을 위한 알고리즘입니다.
 
 ```
 Algorithm: CGNR
 ─────────────────────────────────────────────────────────────────────
 Input:
-  - Initial code: C₀ (from VEGA)
-  - Specification: Spec = (Pre, Post, Inv)
+  - Initial code: C₀
+  - Specification: Spec (from ISA semantics)
   - Max iterations: K
-  - Repair model: M_repair
+  - Repair model: M_repair (Neural or Template-based)
 
 Output:
   - Verified code: C* or FAIL
@@ -201,33 +406,41 @@ Procedure:
 
 3. FOR i = 1 to K:
    
-   4. // Verification Phase
-      VC ← generateVC(C, Spec)
+   4. // Verification Phase (VeGen-style SMT)
+      VC ← GenerateVerificationCondition(C, Spec)
       (result, model) ← SMTSolve(VC)
       
-   5. IF result = UNSAT:  // VC is valid, code is correct
+   5. IF result = UNSAT:  // Code is correct
          RETURN (C, VERIFIED)
    
    6. // Counterexample Extraction
-      CE ← extractCounterexample(model, C, Spec)
+      CE ← ExtractCounterexample(model, C, Spec)
       history.append((C, CE))
    
    7. // Error Localization
-      fault_loc ← localizeFault(C, CE)
+      fault_loc ← LocalizeFault(C, CE)
       
-   8. // Neural Repair
-      context ← buildRepairContext(C, CE, fault_loc, history)
-      C_candidates ← M_repair.generate(context, beam_size=5)
+   8. // Repair Strategy Selection
+      IF IsSimplePatternMismatch(CE):
+         // Template-based repair (faster)
+         C_candidates ← TemplateRepair(C, CE, fault_loc)
+      ELSE:
+         // Neural repair (more flexible)
+         context ← BuildRepairContext(C, CE, fault_loc, history)
+         C_candidates ← M_repair.generate(context, beam_size=5)
       
-   9. // Candidate Selection
-      C ← selectBestCandidate(C_candidates, Spec)
-
+   9. // Candidate Verification and Selection
+      FOR each candidate ∈ C_candidates:
+         IF QuickVerify(candidate, Spec):
+            C ← candidate
+            BREAK
+      
 10. // Max iterations reached
     RETURN (C, FAIL)
 ─────────────────────────────────────────────────────────────────────
 ```
 
-**Repair Context 구조**:
+**Repair Context 구조 (Neural Repair용)**:
 ```python
 RepairContext = {
     "original_code": C,
@@ -239,76 +452,71 @@ RepairContext = {
     },
     "fault_location": {
         "line": fault_loc.line,
-        "statement": fault_loc.stmt,
-        "variables": fault_loc.relevant_vars
+        "statement_type": fault_loc.stmt_type,
+        "relevant_vars": fault_loc.vars
     },
-    "specification": {
-        "violated": CE.violated_condition,
-        "all_conditions": Spec
+    "isa_context": {
+        "instruction": CE.target_instruction,
+        "semantics": Spec.semantics,
+        "similar_patterns": FindSimilarPatterns(CE)
     },
-    "repair_history": history[-3:]  # Last 3 attempts
+    "repair_history": history[-3:]
 }
 ```
 
-### 3.3 Algorithm 3: Hierarchical Modular Verification
+### 3.4 Algorithm 4: Hierarchical Modular Verification
+
+대규모 백엔드의 계층적 검증 알고리즘입니다.
 
 ```
-Algorithm: HierarchicalVerify
+Algorithm: HierarchicalVerification
 ─────────────────────────────────────────────────────────────────────
 Input:
-  - Backend B = {M₁, M₂, ..., Mₖ} (modules)
-  - Each Mᵢ = {f₁, f₂, ..., fₘ} (functions)
-  - Interface contracts: IC = {IC₁, ..., ICₖ}
+  - Backend B = {M₁, M₂, ..., Mₙ} (modules)
+  - ISA Model: ISA
+  - Interface contracts: IC
 
 Output:
-  - Verification result for entire backend
+  - Verification result
 
 Procedure:
 ─────────────────────────────────────────────────────────────────────
-// Level 1: Function-level verification
-1. verified_functions ← {}
-2. FOR each module Mᵢ:
-   FOR each function f ∈ Mᵢ:
-      spec_f ← InferSpecification(f)
-      result ← VerifyFunction(f, spec_f)
-      IF result = VERIFIED:
-         verified_functions.add(f)
-      ELSE:
+// Level 1: Pattern-level verification (VeGen-style)
+1. FOR each pattern p ∈ B.Patterns:
+      ir_sem ← ComputeIRSemantics(p.ir_pattern)
+      target_sem ← ISA.Sem[p.target_instr]
+      
+      IF NOT SMTEquivalent(ir_sem, target_sem):
          // Attempt CGNR repair
-         (f', result') ← CGNR(f, spec_f)
-         IF result' = VERIFIED:
-            Replace f with f' in Mᵢ
-            verified_functions.add(f')
-         ELSE:
-            RETURN FAIL at function f
+         (p', result) ← CGNR(p, target_sem)
+         IF result ≠ VERIFIED:
+            RETURN FAIL("Pattern verification failed", p)
+         Replace p with p' in B
 
 // Level 2: Module-level verification
-3. verified_modules ← {}
-4. FOR each module Mᵢ:
-   // Check internal consistency
-   consistency ← CheckInternalConsistency(Mᵢ)
-   IF NOT consistency:
-      RETURN FAIL at module Mᵢ
-   
-   // Check interface contract satisfaction
-   IF NOT SatisfiesContract(Mᵢ, ICᵢ):
-      RETURN FAIL at contract ICᵢ
-   
-   verified_modules.add(Mᵢ)
+2. FOR each module M ∈ B:
+      // Check internal consistency
+      IF NOT InternalConsistency(M):
+         RETURN FAIL("Internal inconsistency", M)
+      
+      // Check interface contract
+      IF NOT SatisfiesContract(M, IC[M]):
+         RETURN FAIL("Contract violation", M)
 
-// Level 3: Backend integration verification  
-5. // Check cross-module compatibility
-   FOR each pair (Mᵢ, Mⱼ) where Mᵢ depends on Mⱼ:
-      IF NOT Compatible(ICᵢ.assumptions, ICⱼ.guarantees):
-         RETURN FAIL at interface (Mᵢ, Mⱼ)
+// Level 3: Integration verification
+3. // Cross-module compatibility
+   FOR each (Mᵢ, Mⱼ) where Depends(Mᵢ, Mⱼ):
+      IF NOT Compatible(IC[Mᵢ].assumptions, IC[Mⱼ].guarantees):
+         RETURN FAIL("Interface mismatch", (Mᵢ, Mⱼ))
 
-6. // Check end-to-end properties
-   e2e_properties ← GetEndToEndProperties(B)
-   FOR each prop ∈ e2e_properties:
-      IF NOT VerifyE2E(B, prop):
-         RETURN FAIL at property prop
+4. // End-to-end semantic preservation
+   test_programs ← GenerateTestPrograms(ISA)
+   FOR each prog ∈ test_programs:
+      compiled ← Compile(B, prog)
+      IF NOT SemanticEquivalent(prog, compiled):
+         RETURN FAIL("E2E semantic mismatch", prog)
 
-7. RETURN VERIFIED
+5. RETURN VERIFIED
 ─────────────────────────────────────────────────────────────────────
 ```
 
@@ -316,107 +524,135 @@ Procedure:
 
 ## 4. 형식적 정의
 
-### 4.1 Specification Language
+### 4.1 ISA Model 형식화
 
-**문법 (Grammar)**:
+**정의 4.1 (ISA Model)**
 ```
-Spec ::= (Pre, Post, Inv)
+ISA_Model = (R, I, E, Sem)
 
-Pre  ::= Condition | Pre ∧ Pre
-Post ::= Condition | Post ∧ Post
-Inv  ::= Condition | Inv ∧ Inv
+where:
+  R: RegisterSet = {(name, width, count, aliases)}
+  I: InstructionSet = {Instruction}
+  E: EncodingRules = Instruction → BitPattern
+  Sem: Semantics = Instruction → (State → State)
 
-Condition ::= Expr RelOp Expr
-            | isValid(Var)
-            | isInRange(Var, Lo, Hi)
-            | implies(Condition, Condition)
-            
-Expr ::= Var | Const | Expr BinOp Expr | Func(Expr*)
-
-RelOp ::= = | ≠ | < | ≤ | > | ≥
-BinOp ::= + | - | * | / | % | & | |
+Instruction = (mnemonic, format, operands, flags)
+State = (Registers, Memory, Flags)
 ```
 
-### 4.2 Verification Condition Generation
+### 4.2 VeGen의 VIDL 형식화
 
-**정의 4.1 (VCGen for Compiler Backend Functions)**
-
-For a function f with body S:
+**정의 4.2 (Vector Instruction Description Language)**
 ```
-VCGen(f, Spec) = Pre(Spec) ⟹ wp(S, Post(Spec))
-```
-
-**Weakest Precondition Rules**:
-```
-wp(skip, Q)           = Q
-wp(x := e, Q)         = Q[e/x]
-wp(S₁; S₂, Q)         = wp(S₁, wp(S₂, Q))
-wp(if b then S₁ else S₂, Q) = (b ⟹ wp(S₁, Q)) ∧ (¬b ⟹ wp(S₂, Q))
-wp(switch(e) {cases}, Q) = ⋀_{case c: S ∈ cases} (e = c ⟹ wp(S, Q))
-wp(return e, Q)       = Q[e/result]
-```
-
-### 4.3 Interface Contract Formalization
-
-**정의 4.2 (Module Interface Contract)**
-```
-InterfaceContract(M) = {
-  Assumptions: A = {a₁, ..., aₙ}
-  Guarantees:  G = {g₁, ..., gₘ}
-  Dependencies: D = {M₁, ..., Mₖ}
-}
+Grammar:
+  Inst  ::= (inputs: Vec*, output: Vec) ↦ [Op*]
+  Op    ::= (params: Scalar*) ↦ Expr
+  Expr  ::= Scalar
+          | BinOp(Expr, Expr)
+          | UnOp(Expr)
+          | Select(Expr, Expr, Expr)
+  Vec   ::= (length: Nat, elem_type: Type)
+  
+Semantics:
+  ⟦Inst⟧ : Vec* → Vec
+  ⟦Op⟧ : Scalar* → Scalar
 ```
 
-**Compatibility Rule**:
+### 4.3 Hydride의 AutoLLVM IR 형식화
+
+**정의 4.3 (Parameterized IR Instruction)**
 ```
-Compatible(IC₁, IC₂) ⟺ ∀a ∈ IC₁.Assumptions: ∃g ∈ IC₂.Guarantees: g ⟹ a
+AutoLLVM_Instr = (op_class, params)
+
+where:
+  op_class ∈ {VecAdd, VecMul, VecMAC, VecReduce, ...}
+  params = {
+    elem_type: Type,
+    lane_count: Nat,
+    signed: Bool,
+    ...
+  }
+
+Instantiation:
+  instantiate(AutoLLVM_Instr, target) → TargetInstr
+```
+
+### 4.4 Verification Condition 생성
+
+**정의 4.4 (VC Generation for Instruction Selection)**
+```
+VCGen(pattern, target_sem) =
+  let P = pattern.precondition
+  let ir = pattern.ir_semantics
+  let T = target_sem
+  in P ⟹ (ir ≡ T)
+
+Equivalence (≡) in SMT:
+  ir ≡ T ⟺ ∀ inputs: ⟦ir⟧(inputs) = ⟦T⟧(inputs)
 ```
 
 ---
 
 ## 5. 정확성 증명
 
-### 5.1 Theorem 1: Specification Inference Soundness
+### 5.1 Theorem 1: VeGen Pattern Soundness
 
-**정리**: Algorithm 1이 생성한 specification은 모든 reference implementation에 대해 valid합니다.
+**정리**: VeGen의 SMT 검증이 통과하면, 생성된 패턴은 의미론적으로 정확합니다.
 
 ```
-∀ r ∈ R: verify(r, InferSpecification(f, R)) = VALID
+SMTVerify(pattern, target_sem) = VERIFIED 
+  ⟹ ∀ inputs: ⟦pattern.ir⟧(inputs) = ⟦target_sem⟧(inputs)
 ```
 
-**증명 스케치**:
-1. Precondition은 모든 reference에서 공통으로 체크되는 조건만 추출
-2. Postcondition은 모든 reference에서 만족하는 return 조건만 추출
-3. Invariant는 모든 reference에서 성립하는 불변식만 추출
-4. Step 7에서 각 reference에 대해 명시적으로 검증 ∎
+**증명**:
+1. SMTVerify는 ¬(ir ≡ target_sem)의 satisfiability를 검사
+2. UNSAT 결과는 ¬∃inputs: ⟦ir⟧(inputs) ≠ ⟦target_sem⟧(inputs)
+3. 이는 ∀inputs: ⟦ir⟧(inputs) = ⟦target_sem⟧(inputs)와 동치 ∎
 
-### 5.2 Theorem 2: CGNR Soundness
+### 5.2 Theorem 2: Hydride Transfer Correctness
+
+**정리**: Hydride의 similarity-based transfer가 올바른 조건.
+
+```
+∀ op₁ ~ op₂ (similar via P):
+  IF Transfer(pattern₁, op₂) = pattern₂
+  AND Validate(pattern₂, Sem[op₂]) = VALID
+  THEN ⟦pattern₂⟧ ≡ Sem[op₂]
+```
+
+**증명**:
+1. op₁ ~ op₂는 동일한 parameterized operation P의 인스턴스
+2. Transfer는 파라미터만 변경 (구조 유지)
+3. Validate가 SMT로 정확성 확인 ∎
+
+### 5.3 Theorem 3: CGNR Soundness
 
 **정리**: CGNR이 VERIFIED를 반환하면, 생성된 코드는 specification을 만족합니다.
 
 ```
-CGNR(C₀, Spec) = (C*, VERIFIED) ⟹ ⊨ {Pre} C* {Post}
+CGNR(C₀, Spec) = (C*, VERIFIED) ⟹ ⊨ {Pre(Spec)} C* {Post(Spec)}
 ```
 
-**증명 스케치**:
+**증명**:
 1. VERIFIED 반환 조건: SMTSolve(VC) = UNSAT
 2. VC = Pre ⟹ wp(C*, Post)
-3. UNSAT means: ∀σ: σ ⊨ Pre ⟹ σ ⊨ wp(C*, Post)
-4. By wp semantics: {Pre} C* {Post} ∎
+3. UNSAT ⟹ ∀σ: σ ⊨ Pre ⟹ σ ⊨ wp(C*, Post)
+4. wp의 정의에 의해: {Pre} C* {Post} ∎
 
-### 5.3 Theorem 3: Hierarchical Verification Compositionality
+### 5.4 Theorem 4: Hierarchical Verification Compositionality
 
-**정리**: Level 3 검증이 성공하면, 전체 백엔드가 올바릅니다.
+**정리**: 계층적 검증이 성공하면, 전체 백엔드가 의미론적으로 정확합니다.
 
 ```
-HierarchicalVerify(B) = VERIFIED ⟹ ∀p: semantics(compile(B, p)) ≡ semantics(p)
+HierarchicalVerification(B, ISA) = VERIFIED
+  ⟹ ∀ p ∈ Programs: semantics(compile(B, p)) ≡ semantics(p)
 ```
 
-**증명 스케치**:
-1. Level 1: 각 함수가 local specification 만족
-2. Level 2: 모듈 내 함수들의 internal consistency
-3. Level 3: 모듈 간 interface compatibility
-4. By assume-guarantee reasoning: 전체 시스템 correctness 도출 ∎
+**증명 (Assume-Guarantee Reasoning)**:
+1. Level 1: 각 패턴이 ISA 의미론과 일치
+2. Level 2: 모듈 내 일관성 + 계약 만족
+3. Level 3: 모듈 간 호환성 + E2E 검증
+4. Compositionality: 모든 레벨 성공 ⟹ 전체 정확성 ∎
 
 ---
 
@@ -426,47 +662,56 @@ HierarchicalVerify(B) = VERIFIED ⟹ ∀p: semantics(compile(B, p)) ≡ semantic
 
 | Algorithm | Time Complexity | Bottleneck |
 |-----------|-----------------|------------|
-| Spec Inference | O(n × m × log(m)) | AST alignment |
-| CGNR (single iter) | O(|VC|²) | SMT solving |
-| CGNR (total) | O(K × |VC|²) | K iterations |
-| Hierarchical | O(F + M² + E) | Cross-module check |
+| ISA Extraction | O(\|D\| + \|I\| × s) | Document parsing |
+| VeGen Pattern Gen | O(\|I\| × SMT) | SMT solving |
+| Hydride Similarity | O(\|I₁\| × \|I₂\|) | Pairwise comparison |
+| CGNR (single iter) | O(\|VC\|²) | SMT solving |
+| CGNR (total) | O(K × \|VC\|²) | K iterations |
+| Hierarchical Verify | O(P + M² + T) | E2E testing |
 
 Where:
-- n = number of reference implementations
-- m = max AST size
-- |VC| = size of verification condition
+- \|D\| = document size
+- \|I\| = instruction count
+- s = average instruction spec size
+- SMT = SMT solving cost (typically exponential worst-case, polynomial average)
 - K = max CGNR iterations
-- F = total functions
-- M = number of modules
-- E = end-to-end properties
+- P = pattern count
+- M = module count
+- T = test program count
 
 ### 6.2 공간 복잡도
 
 | Component | Space Complexity |
 |-----------|------------------|
-| Specification | O(m) per function |
-| CGNR history | O(K × |C|) |
-| Interface contracts | O(M × c) where c = contract size |
-| SMT solver state | O(|VC|) |
+| ISA Model | O(\|I\| × s) |
+| VeGen VIDL | O(\|I\| × l) where l = lane count |
+| Hydride AutoLLVM | O(compressed) ≈ 0.11 × \|I\| |
+| CGNR history | O(K × \|C\|) |
+| SMT solver state | O(\|VC\|) |
 
-### 6.3 Practical Considerations
+### 6.3 실용적 최적화
 
-**SMT Solving Optimization**:
-- Incremental solving for CGNR iterations
-- Theory-specific decision procedures (bitvectors, arrays)
-- Bounded model checking for loops
+**VeGen 최적화**:
+- Pattern canonicalization으로 중복 제거
+- Incremental SMT solving
 
-**Neural Model Inference**:
-- Batch processing for multiple candidates
-- GPU acceleration
-- Model quantization for deployment
+**Hydride 최적화**:
+- Similarity clustering으로 비교 횟수 감소
+- Parameterized IR caching
+
+**CGNR 최적화**:
+- Quick verification (lightweight check before full SMT)
+- Repair history pruning
 
 ---
 
 ## 참고문헌
 
-1. Cousot, P., & Cousot, R. (1977). Abstract interpretation: a unified lattice model for static analysis of programs. POPL.
-2. Hoare, C. A. R. (1969). An axiomatic basis for computer programming. CACM.
-3. Clarke, E., et al. (2000). Counterexample-guided abstraction refinement. CAV.
-4. de Moura, L., & Bjørner, N. (2008). Z3: An efficient SMT solver. TACAS.
-5. Jones, C. B. (1983). Tentative steps toward a development method for interfering programs. TOPLAS.
+1. Chen et al., "VeGen: A Vectorizer Generator for SIMD and Beyond", ASPLOS 2021
+2. Hydride Project, "Retargetable Compiler IR Generation", ASPLOS 2022
+3. Zhong et al., "VEGA: Automatically Generating Compiler Backends", CGO 2025
+4. Jain et al., "ACT: Automatically Generating Compiler Backends from Tensor Accelerator ISA Descriptions", arXiv 2025
+5. Thomas and Bornholt, "Isaria: Automatic Generation of Vectorizing Compilers", ASPLOS 2024
+6. Freitag et al., "The Vienna Architecture Description Language", arXiv 2024
+7. de Moura and Bjørner, "Z3: An Efficient SMT Solver", TACAS 2008
+8. Willsey et al., "egg: Fast and Extensible Equality Saturation", POPL 2021
